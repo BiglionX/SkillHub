@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/web run build",
+  "buildCommand": "cd ../.. && pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/skill-validator build && pnpm --filter @skillhub/web run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["sin1"],
