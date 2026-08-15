@@ -13,8 +13,8 @@ out/
 coverage/
 playwright-report/
 test-results/
-cypress/screenshots/
-cypress/videos/
+**/cypress/screenshots/
+**/cypress/videos/
 .verify/
 
 # Environment
