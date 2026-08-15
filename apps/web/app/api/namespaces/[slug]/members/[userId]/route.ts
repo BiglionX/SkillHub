@@ -9,7 +9,7 @@ import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse,
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { slug: string; userId: string } }
+  { params }: { params: Promise<{ slug: string; userId: string }> }
 ) {
   try {
     const session = await auth();
@@ -18,7 +18,7 @@ export async function DELETE(
       return unauthorizedResponse();
     }
 
-    const { slug, userId } = params;
+    const { slug, userId } = await params;
 
     // 查找命名空间
     const namespace = await prisma.namespace.findUnique({

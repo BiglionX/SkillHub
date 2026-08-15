@@ -1,0 +1,23 @@
+{
+  "name": "@skillhub/skill-eval",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SkillHub 技能质量评分：LLM-as-judge + 离线启发式兜底，输出 qualityScore (0-100)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

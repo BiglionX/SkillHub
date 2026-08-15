@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const session = await auth();
@@ -22,7 +22,7 @@ export async function POST(
 
     // 查找评论
     const comment = await prisma.skillComment.findUnique({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
       include: { user: true },
     });
 
@@ -36,7 +36,7 @@ export async function POST(
     // TODO: 实现点赞去重逻辑（需要创建 CommentUpvote 表）
     // 目前简单实现：直接增加点赞数
     const updatedComment = await prisma.skillComment.update({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
       data: {
         upvotes: { increment: 1 },
       },

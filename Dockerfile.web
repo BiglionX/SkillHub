@@ -1,45 +1,57 @@
-﻿# 多阶段构建 - Web 应用
-FROM node:20-alpine AS web-builder
+# syntax=docker/dockerfile:1
+# SkillHub Web — Docker 镜像（docker-compose.neon.yml 使用）
+# 多阶段构建：deps（pnpm workspace 依赖）→ builder（turbo 构建）→ runner（Next standalone）
 
-# 安装 OpenSSL 1.1 兼容库
-RUN apk add --no-cache openssl1.1-compat || apk add --no-cache openssl
-
+# ---------- 阶段 1: 依赖 ----------
+FROM node:20-alpine AS deps
+RUN corepack enable
 WORKDIR /app
 
-# 配置国内 npm 镜像加速
-RUN npm config set registry https://registry.npmmirror.com
+# 只复制 manifest，充分利用 Docker 层缓存
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/cli/package.json ./apps/cli/
+COPY packages/search-sdk/package.json ./packages/search-sdk/
+COPY packages/widget/package.json ./packages/widget/
+COPY packages/skill-validator/package.json ./packages/skill-validator/
+COPY packages/skill-test-harness/package.json ./packages/skill-test-harness/
+COPY packages/skill-eval/package.json ./packages/skill-eval/
+COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/utils/package.json ./packages/utils/
 
-# 复制 package.json 和 lock 文件
-COPY package*.json ./
-COPY apps/web/package*.json ./apps/web/
+# prisma generate 放到 builder 阶段（此时无 schema.prisma），这里跳过全部脚本
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# 安装依赖
-RUN npm ci
-
-# 复制源代码
+# ---------- 阶段 2: 构建 ----------
+FROM node:20-alpine AS builder
+RUN corepack enable
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/apps/cli/node_modules ./apps/cli/node_modules
+COPY --from=deps /app/packages ./packages
 COPY . .
 
-# 构建 Web 应用
-WORKDIR /app/apps/web
-RUN npm run build
+ENV NODE_ENV=production
+# 生成 Prisma Client（无需真实数据库连接）
+RUN pnpm --filter @skillhub/web run db:generate
+# turbo 构建：search-sdk / widget / skill-* / cli + web（.next 输出到 apps/web/.next）
+RUN pnpm run build
 
-# 生产阶段
-FROM node:20-alpine AS web-production
-
+# ---------- 阶段 3: 运行（Next standalone）----------
+FROM node:20-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# 复制 package.json
-COPY package*.json ./
-COPY apps/web/package*.json ./apps/web/
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
 
-# 仅安装生产依赖
-RUN npm ci --production
+# standalone 产物（含被追踪到的 node_modules）
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
-# 复制构建产物
-COPY --from=web-builder /app/apps/web/.next ./.next
-COPY --from=web-builder /app/apps/web/public ./public
-COPY --from=web-builder /app/apps/web/next.config.* ./
-
+USER nextjs
 EXPOSE 3000
-
-CMD ["npm", "start"]
+CMD ["node", "apps/web/server.js"]

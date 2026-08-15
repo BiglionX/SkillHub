@@ -17,7 +17,7 @@ const updateUserSchema = z.object({
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -38,7 +38,7 @@ export async function PATCH(
       );
     }
 
-    const userId = params.id;
+    const userId = (await params).id;
     const body = await request.json();
 
     // 验证输入

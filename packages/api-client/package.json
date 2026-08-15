@@ -1,0 +1,6 @@
+{
+  "name": "@skillhub/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SkillHub API client - 通用 API 封装（空骨架，待实现）"
+}

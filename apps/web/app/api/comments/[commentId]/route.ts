@@ -14,7 +14,7 @@ const updateCommentSchema = z.object({
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const session = await auth();
@@ -38,7 +38,7 @@ export async function PUT(
 
     // 查找评论
     const comment = await prisma.skillComment.findUnique({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
     });
 
     if (!comment) {
@@ -60,7 +60,7 @@ export async function PUT(
 
     // 更新评论
     const updatedComment = await prisma.skillComment.update({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
       data: {
         ...(content && { content }),
         ...(rating !== undefined && { rating }),
@@ -123,7 +123,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { commentId: string } }
+  { params }: { params: Promise<{ commentId: string }> }
 ) {
   try {
     const session = await auth();
@@ -137,7 +137,7 @@ export async function DELETE(
 
     // 查找评论
     const comment = await prisma.skillComment.findUnique({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
       include: { skill: true },
     });
 
@@ -160,7 +160,7 @@ export async function DELETE(
 
     // 删除评论（级联删除回复）
     await prisma.skillComment.delete({
-      where: { id: params.commentId },
+      where: { id: (await params).commentId },
     });
 
     // 如果评论有评分，重新计算技能平均评分

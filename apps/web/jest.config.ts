@@ -12,7 +12,16 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  transformIgnorePatterns: ['/node_modules/(?!(jose|next|@next)/)'],
+  testPathIgnorePatterns: ['<rootDir>/tests/', '<rootDir>/app/api/__tests__/mocks.ts'],
 };
 
-export default createJestConfig(config as Parameters<typeof createJestConfig>[0]);
+// 使用 async 函数确保 next/jest 默认值不会覆盖 custom transformIgnorePatterns
+export default async () => {
+  const jestConfig: Config = await createJestConfig(config)();
+  jestConfig.transformIgnorePatterns = [
+    // pnpm 布局下依赖真实路径在 node_modules/.pnpm/<name>@<ver>/...，
+    // 需将 .pnpm 整体纳入转译（pkce-challenge、@modelcontextprotocol/sdk 等 ESM/TS 依赖）
+    '/node_modules/(?!(\\.pnpm|jose|next|@next|pkce-challenge)/)',
+  ];
+  return jestConfig;
+};

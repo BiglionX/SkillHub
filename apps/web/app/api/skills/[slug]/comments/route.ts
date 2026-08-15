@@ -16,12 +16,12 @@ const commentSchema = z.object({
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     // 通过 slug 查找技能
     const skill = await prisma.skill.findUnique({
-      where: { slug: params.slug },
+      where: { slug: (await params).slug },
       select: { id: true },
     });
 
@@ -117,7 +117,7 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const session = await auth();
@@ -143,7 +143,7 @@ export async function POST(
 
     // 通过 slug 验证技能是否存在
     const skill = await prisma.skill.findUnique({
-      where: { slug: params.slug },
+      where: { slug: (await params).slug },
     });
 
     if (!skill) {

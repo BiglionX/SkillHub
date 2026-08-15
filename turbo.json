@@ -21,6 +21,9 @@
         "CYPRESS_INSTALL_BINARY"
       ]
     },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@skillhub/cli#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
@@ -58,7 +61,7 @@
       "dependsOn": ["build"],
       "outputs": []
     },
-    "web#build": {
+    "@skillhub/web#build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [
@@ -77,6 +80,9 @@
         "NODE_ENV",
         "CYPRESS_INSTALL_BINARY"
       ]
+    },
+    "@skillhub/web#typecheck": {
+      "dependsOn": ["^build"]
     },
     "lint": {},
     "test": {},

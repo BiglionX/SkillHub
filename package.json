@@ -1,43 +1,40 @@
 {
   "name": "skillhub",
   "version": "1.0.0",
-  "description": "> **企业级、可自托管、开源的AI Agent技能管理平台** > 类似于\"AI时代的npm/Docker Hub\"，专门为Skills设计",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "private": true,
+  "description": "Skill Hub - ProClaw AI 技能市场平台 (pnpm + turbo monorepo)",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "start": "pnpm --filter @skillhub/web start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "publish-packages": "changeset publish",
-    "ci:version": "changeset version && npm install --package-lock-only",
-    "ci:publish": "changeset publish"
+    "test:e2e": "pnpm --filter @skillhub/web run test:e2e",
+    "test:cypress": "pnpm --filter @skillhub/web run test:cypress",
+    "db:generate": "pnpm --filter @skillhub/web run db:generate",
+    "db:push": "pnpm --filter @skillhub/web run db:push",
+    "db:migrate": "pnpm --filter @skillhub/web run db:migrate",
+    "ci:version": "changeset version",
+    "ci:publish": "changeset publish",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "npm@9.0.0",
   "devDependencies": {
-    "@changesets/cli": "^2.27.0",
-    "@eslint/js": "^9.20.0",
-    "@typescript-eslint/eslint-plugin": "^8.23.0",
-    "@typescript-eslint/parser": "^8.23.0",
-    "eslint": "^9.20.0",
+    "@changesets/cli": "^2.27.11",
+    "@eslint/js": "^9.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "eslint": "^9.18.0",
     "globals": "^15.14.0",
-    "turbo": "^2.9.16"
-  },
-  "dependencies": {
-    "axios": "^1.17.0",
-    "tmp": "^0.2.7",
-    "uuid": "^14.0.0",
-    "ws": "^8.21.0"
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
   }
 }

@@ -1,75 +1,57 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
+.pnpm-store/
 
-# Submodules
-deer-flow/
-
-# Testing
-coverage/
-*.lcov
-
-# Production
-build/
+# Build outputs
 dist/
+build/
 .next/
 out/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.production.neon
-.env.production
-VERCEL_ENV_SETUP.md
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-pnpm-debug.log*
-
-# IDE
-.vscode/*
-!.vscode/extensions.json
-.idea
-.qoder/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Turbo
-.turbo/
-
-# TypeScript build info
 *.tsbuildinfo
 
-# Prisma
-prisma/migrations/
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+cypress/screenshots/
+cypress/videos/
+.verify/
 
-# Temporary files
-*.tmp
-*.temp
-.cache/
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
 
-# OIDC discovery cache (written by scripts/debug-401.ps1, regenerated on every run)
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Turbo cache
+.turbo/
+
+# IDE cache
+.qoder/
+
+# Vendored third-party (integration reference only)
+deer-flow/
+
+# OIDC discovery cache (regenerated on every run)
 .tmp-discovery.json
 
-# Documentation generated
-docs/generated/
+# Local secrets (do not push)
+.env.production.neon
+.env.*.neon
+
+# Generated artifacts
+test-results.json
+apps/web/test-results.json

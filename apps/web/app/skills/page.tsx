@@ -36,10 +36,12 @@ interface SearchParams {
   global?: string;
 }
 
-export default function PublicSkillsPage({
+export default async function PublicSkillsPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  // Next.js 15: searchParams 是 Promise
+  searchParams: Promise<SearchParams>;
 }) {
-  return <PublicSkillsClient searchParams={searchParams} />;
+  const resolved = await searchParams;
+  return <PublicSkillsClient searchParams={resolved} />;
 }

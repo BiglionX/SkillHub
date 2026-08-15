@@ -2,27 +2,37 @@
  * SearchService 单元测试
  */
 
-// Mock Prisma before importing SearchService
-const mockFindMany = jest.fn();
-const mockCount = jest.fn();
-const mockGroupBy = jest.fn();
-const mockQueryRawUnsafe = jest.fn();
-const mockQueryRaw = jest.fn();
+import { describe, it, expect, beforeEach } from '@jest/globals';
+import type { jest } from '@jest/globals';
+
+// 使用全局 jest 对象进行 mock（不由 @jest/globals 导入）
+// 这是因为 jest.mock 工厂函数在模块提升（hoisting）上下文中运行，
+// 导入的 jest 变量可能尚未就绪
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+// 由于全局 mock 已被移除，此处导入的是真实的 SearchService 实现
+// 使用 jest.mock('@/lib/prisma'...) 来模拟数据库访问
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     skill: {
-      findMany: jest.fn(() => mockFindMany()),
-      count: jest.fn(() => mockCount()),
-      groupBy: jest.fn(() => mockGroupBy()),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
     },
-    $queryRawUnsafe: jest.fn((...args) => mockQueryRawUnsafe(...args)),
-    $queryRaw: jest.fn((...args) => mockQueryRaw(...args)),
+    $queryRawUnsafe: jest.fn(),
+    $queryRaw: jest.fn(),
   },
 }));
 
 import { SearchService } from '../SearchService';
 import { prisma } from '@/lib/prisma';
+
+const mockQueryRaw = prisma.$queryRaw as jest.Mock;
+const mockQueryRawUnsafe = prisma.$queryRawUnsafe as jest.Mock;
+const mockFindMany = prisma.skill.findMany as jest.Mock;
+const mockCount = prisma.skill.count as jest.Mock;
+const mockGroupBy = prisma.skill.groupBy as jest.Mock;
 
 describe('SearchService', () => {
   let searchService: SearchService;
@@ -44,12 +54,13 @@ describe('SearchService', () => {
     });
 
     it('应该获取技能名称建议', async () => {
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([
-        { name: 'AI Agent' },
-        { name: 'AI Assistant' },
-      ]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
+      mockQueryRaw
+        .mockResolvedValueOnce([
+          { name: 'AI Agent' },
+          { name: 'AI Assistant' },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
 
       const result = await searchService.getSuggestions('ai', 5);
 
@@ -59,11 +70,12 @@ describe('SearchService', () => {
     });
 
     it('应该获取分类建议', async () => {
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([
-        { category: 'ai-tools' },
-      ]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
+      mockQueryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { category: 'ai-tools' },
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await searchService.getSuggestions('ai', 5);
 
@@ -73,11 +85,12 @@ describe('SearchService', () => {
     });
 
     it('应该获取标签建议', async () => {
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([]);
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([
-        { tag: 'automation' },
-      ]);
+      mockQueryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { tag: 'automation' },
+        ]);
 
       const result = await searchService.getSuggestions('auto', 5);
 
@@ -87,7 +100,7 @@ describe('SearchService', () => {
     });
 
     it('应该限制返回数量为limit', async () => {
-      (mockQueryRaw as jest.Mock).mockResolvedValueOnce([
+      mockQueryRaw.mockResolvedValueOnce([
         { name: 'Skill 1' },
         { name: 'Skill 2' },
         { name: 'Skill 3' },
@@ -101,7 +114,7 @@ describe('SearchService', () => {
     });
 
     it('应该在数据库错误时返回空数组', async () => {
-      (mockQueryRaw as jest.Mock).mockRejectedValue(new Error('DB error'));
+      mockQueryRaw.mockRejectedValue(new Error('DB error'));
 
       const result = await searchService.getSuggestions('test', 5);
 
@@ -111,7 +124,7 @@ describe('SearchService', () => {
 
   describe('getPopularSearches', () => {
     it('应该返回热门搜索词列表', async () => {
-      (mockFindMany as jest.Mock).mockResolvedValue([
+      mockFindMany.mockResolvedValue([
         {
           name: 'AI Agent Framework',
           tags: ['ai', 'agent', 'automation'],
@@ -127,12 +140,12 @@ describe('SearchService', () => {
       const result = await searchService.getPopularSearches(10);
 
       expect(Array.isArray(result)).toBe(true);
-      // 验证调用了 findMany
+      // 验证调用了findMany
       expect(mockFindMany).toHaveBeenCalled();
     });
 
     it('应该限制返回数量', async () => {
-      (mockFindMany as jest.Mock).mockResolvedValue([
+      mockFindMany.mockResolvedValue([
         { name: 'Test Skill', tags: ['test'], category: 'test' },
       ]);
 
@@ -142,7 +155,7 @@ describe('SearchService', () => {
     });
 
     it('应该过滤短单词（长度<=3）', async () => {
-      (mockFindMany as jest.Mock).mockResolvedValue([
+      mockFindMany.mockResolvedValue([
         { name: 'Artificial Intelligence', tags: ['machine-learning'], category: 'ai' },
       ]);
 
@@ -155,7 +168,7 @@ describe('SearchService', () => {
     });
 
     it('应该在没有任何skills时返回空数组', async () => {
-      (mockFindMany as jest.Mock).mockResolvedValue([]);
+      mockFindMany.mockResolvedValue([]);
 
       const result = await searchService.getPopularSearches(10);
 
@@ -165,7 +178,7 @@ describe('SearchService', () => {
 
   describe('search', () => {
     it('应该执行基本搜索', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 10 }])
         .mockResolvedValueOnce([
           { id: '1', name: 'Test Skill', slug: 'test-skill' },
@@ -180,7 +193,7 @@ describe('SearchService', () => {
     });
 
     it('应该支持分页参数', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 50 }])
         .mockResolvedValueOnce([]);
 
@@ -196,7 +209,7 @@ describe('SearchService', () => {
     });
 
     it('应该支持分类过滤', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 5 }])
         .mockResolvedValueOnce([]);
 
@@ -206,7 +219,7 @@ describe('SearchService', () => {
     });
 
     it('应该支持排序方式', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 0 }])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ total: 0 }])
@@ -227,7 +240,7 @@ describe('SearchService', () => {
 
   describe('advancedSearch', () => {
     it('应该执行高级搜索', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 15 }])
         .mockResolvedValueOnce([
           { id: '1', name: 'Advanced Skill' },
@@ -244,7 +257,7 @@ describe('SearchService', () => {
     });
 
     it('应该支持多语言过滤', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 8 }])
         .mockResolvedValueOnce([]);
 
@@ -256,7 +269,7 @@ describe('SearchService', () => {
     });
 
     it('应该支持日期范围过滤', async () => {
-      (mockQueryRawUnsafe as jest.Mock)
+      mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 3 }])
         .mockResolvedValueOnce([]);
 

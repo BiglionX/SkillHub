@@ -95,6 +95,16 @@ model Skill {
   categoryPath     String?
   locale           String          @default("zh-CN")
   executionConfig  Json? // Flowise 集成配置：存储 API 端点、Docker 镜像或执行参数
+
+  // === v3.0 新增：Agent Skills 开放标准兼容（https://agentskills.io）===
+  skillMdContent       String?   @db.Text // SKILL.md 完整内容
+  skillMdFrontmatter   Json?     // 解析后的 YAML frontmatter
+  standardName         String?   // 标准 name（与 frontmatter 一致）
+  standardDescription  String?   @db.Text // 标准 description
+  discoveryKeywords    String[]  @default([]) // 用于 Agent 渐进式披露的关键词
+  agentSkillsVersion   String?   // 兼容的 Agent Skills 协议版本（如 "1.0"）
+  lastAnalyzedAt       DateTime? // 最近一次 SKILL.md 分析时间
+
   reviews          Review[]
   bounties         SkillBounty[]
   comments         SkillComment[]
@@ -103,6 +113,8 @@ model Skill {
   knowledgeFragment KnowledgeFragment?
   childItems       SkillPackItem[] @relation("SkillPackParent")
   parentPacks      SkillPackItem[] @relation("SkillPackChild")
+  resources        SkillResource[] // 关联的 scripts/references/assets 资源
+  translations     SkillTranslation[] // 多语言翻译
   author           User            @relation(fields: [authorId], references: [id])
   namespace        Namespace?      @relation(fields: [namespaceId], references: [id])
 
@@ -116,7 +128,30 @@ model Skill {
   @@index([authorId, createdAt])
   @@index([authorId, status])
   @@index([authorId, downloadCount])
+  @@index([standardName])
+  @@index([agentSkillsVersion])
   @@map("skills")
+}
+
+/// Agent Skills 标准的 scripts/references/assets 资源
+model SkillResource {
+  id          String   @id @default(cuid())
+  skillId     String
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  type        String   // "script" | "reference" | "asset" | "other"
+  path        String   // 相对路径，如 "scripts/check.sh"
+  storageKey  String   // 对象存储 key
+  sizeBytes   Int
+  mimeType    String?
+  checksum    String?  // SHA-256 校验和
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([skillId, path])
+  @@index([skillId, type])
+  @@map("skill_resources")
 }
 
 model SkillVersion {
@@ -641,4 +676,33 @@ model SkillPackItem {
 
   @@id([packId, childSkillId])
   @@map("skill_pack_items")
+}
+
+/// Skill 多语言翻译表
+/// 支持 Skill 的 name/description/skillMdContent 在不同语言下的翻译
+model SkillTranslation {
+  id          String   @id @default(uuid())
+  skillId     String
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  /// 目标语言代码，如 zh-CN, en-US, ja-JP, ko-KR
+  locale      String
+
+  /// 翻译后的名称（可选，null 表示使用原始名称）
+  name        String?
+
+  /// 翻译后的描述（可选，null 表示使用原始描述）
+  description String? @db.Text
+
+  /// 翻译后的 SKILL.md 内容（可选）
+  skillMdContent String? @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// 每个 skill 每个 locale 只能有一条翻译记录
+  @@unique([skillId, locale])
+  @@index([skillId])
+  @@index([locale])
+  @@map("skill_translations")
 }

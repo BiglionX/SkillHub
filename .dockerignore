@@ -1,15 +1,34 @@
-﻿node_modules
+# 依赖与构建产物
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+.verify
+
+# 版本控制 / 元数据
 .git
 .gitignore
-*.md
-.env.local
-.env.*.local
-.next/cache
-dist
-coverage
-.nyc_output
+.github
+.changeset
+.turbo
 .vscode
-.idea
+
+# vendored 第三方仓库（避免打入构建上下文）
+deer-flow
+
+# 环境变量（含密钥，禁止进镜像）
+.env
+.env.*
+!.env.example
+!apps/web/.env.example
+
+# 测试与日志
+coverage
+**/coverage
+test-results
+playwright-report
+cypress
 *.log
-.DS_Store
-Thumbs.db
+*.tsbuildinfo

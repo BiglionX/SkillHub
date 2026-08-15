@@ -7,10 +7,11 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 interface TasksPageProps {
-  searchParams: {
+  // Next.js 15: searchParams 是 Promise，必须 await
+  searchParams: Promise<{
     page?: string;
     status?: string;
-  };
+  }>;
 }
 
 export default async function CrawlerTasksPage({ searchParams }: TasksPageProps) {
@@ -33,8 +34,9 @@ export default async function CrawlerTasksPage({ searchParams }: TasksPageProps)
   }
 
   // 获取查询参数
-  const page = parseInt(searchParams.page || '1');
-  const status = searchParams.status || 'all';
+  const resolved = await searchParams;
+  const page = parseInt(resolved.page || '1');
+  const status = resolved.status || 'all';
   const pageSize = 20;
 
   // 构建查询条件

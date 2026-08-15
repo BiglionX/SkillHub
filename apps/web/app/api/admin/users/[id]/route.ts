@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -29,7 +29,7 @@ export async function PATCH(
     //   );
     // }
 
-    const userId = params.id;
+    const userId = (await params).id;
     const body = await request.json();
     const { action } = body;
 
@@ -141,7 +141,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -156,7 +156,7 @@ export async function DELETE(
 
     // TODO: 添加管理员角色检查
 
-    const userId = params.id;
+    const userId = (await params).id;
 
     // 验证用户是否存在
     const user = await prisma.user.findUnique({

@@ -54,10 +54,19 @@ export default function SearchBox({
   const debounce = <T extends (...args: any[]) => void>(func: T, wait: number) => {
     let timeout: ReturnType<typeof setTimeout> | null = null;
     
-    return ((..._debounceArgs: Parameters<T>) => {
+    const debounced = ((..._debounceArgs: Parameters<T>) => {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => func(..._debounceArgs), wait);
     }) as T & { cancel: () => void };
+
+    debounced.cancel = () => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+    };
+
+    return debounced;
   };
 
   // 使用防抖获取搜索建议

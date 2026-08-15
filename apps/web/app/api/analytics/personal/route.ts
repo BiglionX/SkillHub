@@ -49,7 +49,6 @@ export async function GET(request: Request) {
       include: {
         _count: {
           select: {
-            downloads: true,
             reviews: true,
           },
         },
@@ -58,7 +57,8 @@ export async function GET(request: Request) {
 
     // 计算统计数据
     const totalSkills = skills.length;
-    const totalDownloads = skills.reduce((sum, skill) => sum + skill._count.downloads, 0);
+    // downloads 是 Skill 标量字段 downloadCount（无 downloads 关系），直接用标量求和
+    const totalDownloads = skills.reduce((sum, skill) => sum + skill.downloadCount, 0);
     
     const ratings = skills
       .filter(s => s._count.reviews > 0)

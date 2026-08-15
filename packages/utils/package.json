@@ -1,0 +1,6 @@
+{
+  "name": "@skillhub/utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SkillHub 通用工具函数（空骨架，待实现）"
+}

@@ -8,20 +8,22 @@ import StatusFilter from './StatusFilter';
 export const dynamic = 'force-dynamic';
 
 interface UsersPageProps {
-  searchParams: {
+  // Next.js 15: searchParams 是 Promise，必须 await
+  searchParams: Promise<{
     page?: string;
     search?: string;
     status?: string;
-  };
+  }>;
 }
 
 export default async function UsersPage({ searchParams }: UsersPageProps) {
   await auth();
 
   // 获取查询参数
-  const page = parseInt(searchParams.page || '1');
-  const search = searchParams.search || '';
-  const status = searchParams.status || 'all';
+  const resolved = await searchParams;
+  const page = parseInt(resolved.page || '1');
+  const search = resolved.search || '';
+  const status = resolved.status || 'all';
   const pageSize = 20;
   
   // 构建查询条件

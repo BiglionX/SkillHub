@@ -1,0 +1,26 @@
+{
+  "name": "@skillhub/skill-test-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SkillHub 技能包冒烟测试沙箱：复制技能包到隔离目录、执行代表性任务、生成测试报告",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@skillhub/skill-validator": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

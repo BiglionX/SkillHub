@@ -1,12 +1,10 @@
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../reviews/route';
 import { mockPrisma } from './mocks';
 
-// Mock auth
-const mockAuth = jest.fn();
-jest.mock('@/lib/auth', () => ({
-  auth: () => mockAuth(),
-}));
+// Auth mock is set up globally in jest.setup.ts (accessible via __mockAuth)
+const mockAuth = (global as any).__mockAuth;
 
 describe('Reviews API', () => {
   beforeEach(() => {

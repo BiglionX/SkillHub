@@ -1,12 +1,10 @@
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../namespaces/route';
 import { mockPrisma } from './mocks';
 
-// Mock auth
-const mockAuth = jest.fn();
-jest.mock('@/app/api/auth/[...nextauth]/route', () => ({
-  auth: () => mockAuth(),
-}));
+// Auth mock is set up globally in jest.setup.ts (accessible via __mockAuth)
+const mockAuth = (global as any).__mockAuth;
 
 describe('Namespaces API', () => {
   beforeEach(() => {
@@ -68,7 +66,9 @@ describe('Namespaces API', () => {
     });
 
     it('应该支持按类型过滤', async () => {
-      mockAuth.mockResolvedValue(null);
+      mockAuth.mockResolvedValue({
+        user: { id: 'user1', email: 'test@example.com' },
+      });
       mockPrisma.namespace.count.mockResolvedValue(1);
       mockPrisma.namespace.findMany.mockResolvedValue([]);
 
@@ -224,6 +224,9 @@ describe('Namespaces API', () => {
       mockAuth.mockResolvedValue({
         user: { id: 'user1', email: 'test@example.com' },
       });
+
+      // Slug must not exist for the route to reach the GLOBAL type check
+      mockPrisma.namespace.findUnique.mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost:3000/api/namespaces', {
         method: 'POST',

@@ -10,6 +10,7 @@ import Pagination from '@/components/ui/Pagination';
 import SearchHistory from '@/components/ui/SearchHistory';
 import GlobalSearchLoadingIndicator from '@/components/ui/GlobalSearchLoadingIndicator';
 import PromoCards from '@/components/ui/PromoCards';
+import DSHBanner from '@/components/ui/DSHBanner';
 
 interface SearchParams {
   q?: string;
@@ -358,6 +359,9 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
           </div>
         </div>
       </div>
+
+      {/* DSH 开源融合广告横幅 */}
+      <DSHBanner />
 
       {/* 快速标签栏 */}
       {categories.length > 1 && (

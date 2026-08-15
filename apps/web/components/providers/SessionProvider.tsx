@@ -19,12 +19,15 @@ export interface SessionContextValue {
   session: Session | null;
   data: Session | null;
   status: string;
+  /** next-auth 兼容：本地更新 session（如资料保存后刷新用户信息） */
+  update: (data?: Session | null) => Promise<Session | null>;
 }
 
 const SessionContext = createContext<SessionContextValue>({
   session: null,
   data: null,
   status: 'loading',
+  update: async () => null,
 });
 
 interface SessionProviderProps {
@@ -63,7 +66,19 @@ export function SessionProvider({ children }: SessionProviderProps) {
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, data: session, status }}>
+    <SessionContext.Provider
+      value={{
+        session,
+        data: session,
+        status,
+        update: async (data) => {
+          const next = { ...(session ?? {}), ...(data ?? {}) } as Session;
+          setSession(next);
+          setStatus('authenticated');
+          return next;
+        },
+      }}
+    >
       {children}
     </SessionContext.Provider>
   );

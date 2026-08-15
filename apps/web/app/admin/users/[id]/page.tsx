@@ -6,17 +6,20 @@ import { notFound } from 'next/navigation';
 // 强制动态渲染，避免在构建时访问数据库
 export const dynamic = 'force-dynamic';
 
+// Next.js 15: params 现在是 Promise，必须 await
 interface UserDetailPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function UserDetailPage({ params }: UserDetailPageProps) {
   await auth();
+  // Next.js 15: 必须 await params
+  const { id } = await params;
 
   const user = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       _count: {
         select: {
@@ -166,7 +169,7 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
             <h3 className="text-lg font-medium text-gray-900">最近创建的 Skills</h3>
           </div>
           <ul className="divide-y divide-gray-200">
-            {user.skills.map((skill) => (
+            {user.skills.map((skill: { id: string; name: string; slug: string; description: string | null; category: string; version: string; status: string; createdAt: Date }) => (
               <li key={skill.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -200,7 +203,7 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
             <h3 className="text-lg font-medium text-gray-900">API Keys</h3>
           </div>
           <ul className="divide-y divide-gray-200">
-            {user.apiKeys.map((apiKey) => (
+            {user.apiKeys.map((apiKey: { id: string; name: string; prefix: string; permissions: string[]; lastUsedAt: Date | null; createdAt: Date }) => (
               <li key={apiKey.id} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>

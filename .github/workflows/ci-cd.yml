@@ -10,7 +10,7 @@ jobs:
   # 单元测试和集成测试
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -25,7 +25,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      
+
       redis:
         image: redis:7-alpine
         ports:
@@ -40,28 +40,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          cd apps/web && npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @skillhub/web run db:generate
 
       - name: Run linting
-        run: |
-          cd apps/web
-          npm run lint
+        run: pnpm lint
+
+      - name: Run typecheck
+        run: pnpm typecheck
 
       - name: Run unit tests
-        run: |
-          cd apps/web
-          npm run test:coverage
+        run: pnpm --filter @skillhub/web run test:coverage
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/skillhub_test
+          DIRECT_URL: postgresql://test:test@localhost:5432/skillhub_test
           REDIS_URL: redis://localhost:6379
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
@@ -76,7 +82,7 @@ jobs:
   # E2E 测试
   e2e-test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -96,31 +102,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          cd apps/web && npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Database setup
         run: |
-          cd apps/web
-          npx prisma generate
-          npx prisma db push
+          pnpm --filter @skillhub/web run db:generate
+          pnpm --filter @skillhub/web run db:push
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/skillhub_test
+          DIRECT_URL: postgresql://test:test@localhost:5432/skillhub_test
 
       - name: Build application
-        run: |
-          cd apps/web
-          npm run build
+        run: pnpm --filter @skillhub/web run build
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/skillhub_test
+          DIRECT_URL: postgresql://test:test@localhost:5432/skillhub_test
           REDIS_URL: redis://localhost:6379
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
@@ -129,11 +137,12 @@ jobs:
         uses: cypress-io/github-action@v6
         with:
           working-directory: apps/web
-          start: npm start
+          start: pnpm start
           wait-on: 'http://localhost:3000'
           wait-on-timeout: 120
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/skillhub_test
+          DIRECT_URL: postgresql://test:test@localhost:5432/skillhub_test
           REDIS_URL: redis://localhost:6379
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
@@ -156,43 +165,46 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: [test, e2e-test]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          cd apps/web && npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @skillhub/web run db:generate
 
       - name: Build web application
-        run: |
-          cd apps/web
-          npm run build
+        run: pnpm --filter @skillhub/web run build
         env:
           DATABASE_URL: postgresql://user:password@localhost:5432/skillhub
+          DIRECT_URL: postgresql://user:password@localhost:5432/skillhub
           REDIS_URL: redis://localhost:6379
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: https://skillhub.example.com
 
       - name: Build CLI application
-        run: |
-          cd apps/cli
-          npm run build
+        run: pnpm --filter @skillhub/cli run build
 
       - name: Create deployment artifacts
         run: |
           mkdir -p deploy
           cp -r apps/web/.next deploy/web
           cp -r apps/cli/dist deploy/cli
-          cp docker-compose.yml deploy/
+          cp docker-compose.neon.yml deploy/
           cp .env.production.example deploy/.env.production
 
       - name: Upload deployment artifacts
@@ -204,13 +216,27 @@ jobs:
   # 安全扫描
   security:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run npm audit
-        run: npm audit --production
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run pnpm audit
+        run: pnpm audit --prod
         continue-on-error: true
 
       - name: Run Trivy vulnerability scanner
@@ -230,25 +256,31 @@ jobs:
   # 代码质量检查
   quality:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Check code formatting
-        run: npx prettier --check "**/*.{ts,tsx,js,jsx,json,md}"
+        run: pnpm format:check
         continue-on-error: true
 
       - name: Run ESLint
-        run: npx eslint "**/*.{ts,tsx,js,jsx}" --max-warnings=0
+        run: pnpm lint --max-warnings=0
         continue-on-error: true
 
   # 通知
@@ -256,7 +288,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, e2e-test, build, security, quality]
     if: always()
-    
+
     steps:
       - name: Notify Slack
         uses: slackapi/slack-github-action@v1.25.0
@@ -264,16 +296,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "SkillHub CI/CD Pipeline Status: ${{ needs.test.result == 'success' && needs.e2e-test.result == 'success' && needs.build.result == 'success' && '✅ SUCCESS' || '❌ FAILED' }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*SkillHub CI/CD Pipeline*\nStatus: ${{ needs.test.result == 'success' && needs.e2e-test.result == 'success' && needs.build.result == 'success' && '✅ SUCCESS' || '❌ FAILED' }}\nBranch: `${{ github.ref_name }}`\nCommit: ${{ github.sha }}"
-                  }
-                }
-              ]
+              "text": "SkillHub CI/CD Pipeline Status: ${{ needs.test.result == 'success' && needs.e2e-test.result == 'success' && needs.build.result == 'success' && 'SUCCESS' || 'FAILED' }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

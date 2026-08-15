@@ -1,61 +1,9 @@
-// Mock Prisma Client for API tests
-export const mockPrisma = {
-  skill: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    aggregate: jest.fn(),
-    groupBy: jest.fn(),
-  },
-  namespace: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-  namespaceMember: {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    delete: jest.fn(),
-  },
-  user: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-  review: {
-    count: jest.fn(),
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findFirst: jest.fn(),
-  },
-  auditLog: {
-    findMany: jest.fn(),
-  },
-};
+import { jest } from '@jest/globals';
 
-// Mock the prisma module
-jest.mock('@/lib/prisma', () => ({
-  prisma: mockPrisma,
-}));
+// Use the global Prisma mock from jest.setup.ts (the same one used by route handlers)
+// This avoids the issue of having two separate mock instances
+export const mockPrisma: Record<string, Record<string, jest.Mock<any>>> = (global as any).__mockPrisma;
 
-// Mock auth
-const mockAuthFn = jest.fn();
-jest.mock('@/lib/auth-config', () => ({
-  auth: mockAuthFn,
-}));
-
-import { auth } from '@/lib/auth-config';
-export const mockAuth = auth as jest.MockedFunction<typeof auth>;
+// Prisma mock is already set up in jest.setup.ts (via __mockPrisma global)
+// Do NOT add jest.mock('@/lib/prisma') here — it would override the working mock
+// from jest.setup.ts with a broken one due to Jest hoisting behavior.

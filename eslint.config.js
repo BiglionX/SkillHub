@@ -21,6 +21,8 @@ module.exports = [
     },
     rules: {
       "no-unused-vars": "off", // Handled by @typescript-eslint/no-unused-vars
+      // TS 类型（如 NodeJS.Timeout、import type）由 tsc 检查，核心 no-undef 会产生误报
+      "no-undef": "off",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": [
         "warn", 
@@ -60,6 +62,16 @@ module.exports = [
     },
     rules: {
       "no-undef": "off", // Cypress 全局变量由类型定义提供
+    },
+  },
+  {
+    // Jest 单元测试：声明 jest 全局（含 jest-circus 的 fail）
+    files: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        fail: "readonly", // jest-circus 提供
+      },
     },
   },
   {

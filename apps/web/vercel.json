@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd ../.. && npm run build",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter @skillhub/web run build",
   "outputDirectory": ".next",
-  "installCommand": "cd ../.. && npm ci",
   "framework": "nextjs",
   "regions": ["sin1"],
   "env": {

@@ -9,7 +9,7 @@ import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/api-
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -18,7 +18,7 @@ export async function DELETE(
       return unauthorizedResponse();
     }
 
-    const keyId = params.id;
+    const keyId = (await params).id;
 
     // 验证密钥存在且属于当前用户
     const apiKey = await prisma.apiKey.findFirst({
