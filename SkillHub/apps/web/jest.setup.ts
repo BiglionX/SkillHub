@@ -58,6 +58,28 @@ if (typeof globalThis.TextEncoder === 'undefined') {
 if (typeof globalThis.TextDecoder === 'undefined') {
   (globalThis as any).TextDecoder = TextDecoder;
 }
+
+// Polyfill TransformStream for MCP SDK (eventsource-parser uses it)
+if (typeof globalThis.TransformStream === 'undefined') {
+  class SimpleTransformStream {
+    private controller: any;
+    readable: ReadableStream;
+    writable: WritableStream;
+
+    constructor() {
+      let controller: any;
+      this.readable = new ReadableStream({
+        start(c) { controller = c; },
+      });
+      this.writable = new WritableStream({
+        write(chunk: any) {
+          if (controller) controller.enqueue(chunk);
+        },
+      });
+    }
+  }
+  (globalThis as any).TransformStream = SimpleTransformStream;
+}
 /* eslint-enable @typescript-eslint/no-explicit-any, no-var */
 
 // Mock Next.js router
@@ -135,27 +157,16 @@ jest.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
 }));
 
+// Mock auth function (used by skills, namespaces, reviews API routes)
+// Note: jest.mock in setupFilesAfterEnv is NOT hoisted, so the factory
+// captures the correctly initialized mockAuth variable.
+// jest 29 的 jest.fn 泛型为 <T(返回), Y(参数)> 两参形式
+const mockAuth = jest.fn<Promise<null | { user: { id: string; email: string } }>, []>();
+jest.mock('@/lib/auth-config', () => ({ auth: mockAuth }));
+(global as any).__mockAuth = mockAuth;
+
 // 导出 mockPrisma 供测试文件使用
 (global as any).__mockPrisma = mockPrisma;
-
-// Mock SearchService - 全局 mock 避免 ESM 模块问题
-const mockSearchServiceInstance = {
-  search: jest.fn(),
-  advancedSearch: jest.fn(),
-  getSuggestions: jest.fn(),
-  getPopularSearches: jest.fn(),
-};
-
-const MockSearchService = jest.fn().mockImplementation(() => mockSearchServiceInstance);
-
-jest.mock('@/lib/search/SearchService', () => ({
-  SearchService: MockSearchService,
-}));
-
-// 导出 mockSearchServiceInstance 供测试文件使用
-(global as any).__mockSearchService = mockSearchServiceInstance;
-(global as any).__MockSearchService = MockSearchService;
-
 
 // Suppress console errors during tests
 const originalConsoleError = console.error;
