@@ -97,13 +97,15 @@ model Skill {
   executionConfig  Json? // Flowise 集成配置：存储 API 端点、Docker 镜像或执行参数
 
   // === v3.0 新增：Agent Skills 开放标准兼容（https://agentskills.io）===
-  skillMdContent       String?   @db.Text // SKILL.md 完整内容
-  skillMdFrontmatter   Json?     // 解析后的 YAML frontmatter
-  standardName         String?   // 标准 name（与 frontmatter 一致）
-  standardDescription  String?   @db.Text // 标准 description
-  discoveryKeywords    String[]  @default([]) // 用于 Agent 渐进式披露的关键词
-  agentSkillsVersion   String?   // 兼容的 Agent Skills 协议版本（如 "1.0"）
-  lastAnalyzedAt       DateTime? // 最近一次 SKILL.md 分析时间
+  // 注意：以下字段通过 @map 映射到 20260624_add_agent_skills_standard_support 迁移
+  // 创建的下划线命名列（skill_md_content 等），与迁移 SQL 保持一致。
+  skillMdContent       String?   @db.Text @map("skill_md_content") // SKILL.md 完整内容
+  skillMdFrontmatter   Json?     @map("skill_md_frontmatter") // 解析后的 YAML frontmatter
+  standardName         String?   @map("standard_name") // 标准 name（与 frontmatter 一致）
+  standardDescription  String?   @db.Text @map("standard_description") // 标准 description
+  discoveryKeywords    String[]  @default([]) @map("discovery_keywords") // 用于 Agent 渐进式披露的关键词
+  agentSkillsVersion   String?   @map("agent_skills_version") // 兼容的 Agent Skills 协议版本（如 "1.0"）
+  lastAnalyzedAt       DateTime? @map("last_analyzed_at") // 最近一次 SKILL.md 分析时间
 
   reviews          Review[]
   bounties         SkillBounty[]

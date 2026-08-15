@@ -184,18 +184,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to fetch skills data:', error);
-    // 诊断：输出运行时实际连接的数据库 host + 库名（不含凭据），用于排查环境变量指向
-    console.error(
-      '[db-diag] DATABASE_URL =',
-      (() => {
-        try {
-          const u = new URL(process.env.DATABASE_URL || '');
-          return `${u.host}${u.pathname}`;
-        } catch {
-          return 'unparseable or empty';
-        }
-      })()
-    );
     return Response.json({
       skills: [],
       total: 0,
