@@ -107,6 +107,7 @@ my-skill/
 5. **`deer-flow/` 是整体 vendored 的第三方仓库**：不要把它当作本项目代码修改；ESLint 已忽略该目录。
 6. **根 workspace lockfile 已重建（2026-04，306KB 含全部 importers）**：本地 `pnpm install` 已生成并生效。建议顺手删除过期的嵌套 lockfile `apps/web/pnpm-lock.yaml`、`apps/cli/pnpm-lock.yaml`（根 lockfile 已覆盖，留着会被 Next/工具链误判）。
 7. **部署配置已补齐（2026-04）**：`apps/web/next.config.js`（含 transpilePackages、standalone、outputFileTracingRoot、webpack node-builtin externals——instrumentation 编译必需）、`apps/web/vercel.json`（已改为 pnpm workspace 命令）、`Dockerfile.web` + `.dockerignore`（新建，Docker 部署用）、`.env.production.example`（补齐 OIDC/DIRECT_URL/SkillsMP/Upstash 等变量）。**已在本地跑通 `next build`（含 standalone 产物）**，但 Vercel/Docker 部署仍未实跑。
+   - **Vercel 已实跑（2026-08）并修复两处**：① `apps/web/vercel.json` 的 `buildCommand` 需先构建 workspace 依赖再构建 web（`pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/web run build`），否则全新 checkout 缺 `dist/` 报 `Can't resolve '@skillhub/widget'/'@skillhub/search-sdk'`；② `packages/widget` devDeps 的 `@types/react` 从 ^18 对齐到 ^19（+`@types/react-dom`），否则 tsup `--dts` 因 @types/react 18/19 双版本冲突报 TS2786。
 8. **仓库外的流浪 lockfile**：`D:\BigLionX\package-lock.json`（633KB，仓库上一级目录）会干扰 Next 根目录探测——已用 `outputFileTracingRoot` 屏蔽，建议手动删除该文件。
 
 ## 9. 对 AI 代理的工作指引
