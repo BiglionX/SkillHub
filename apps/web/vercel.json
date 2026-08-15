@@ -5,7 +5,8 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "PRISMA_GENERATE_SKIP_AUTOINSTALL": "true"
   },
   "build": {
     "env": {
