@@ -22,8 +22,11 @@ const nextConfig = {
   output: 'standalone',
   // 显式指定 monorepo 根，避免误探测仓库外的 package-lock.json（D:\BigLionX\package-lock.json）
   outputFileTracingRoot: path.join(__dirname, '../..'),
-  webpack: (config, { isServer }) => {
-    if (isServer) {
+  webpack: (config, { isServer, nextRuntime }) => {
+    // 仅对 Node.js server 编译（instrumentation 等）将内建模块标记为 external；
+    // Edge 编译（middleware 等）不得注入 commonjs 内建模块引用，否则 Vercel Edge Runtime 报
+    // "referencing unsupported modules: path, child_process, fs, crypto, os"
+    if (isServer && nextRuntime === 'nodejs') {
       const existing = Array.isArray(config.externals)
         ? config.externals
         : config.externals
