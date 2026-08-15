@@ -12,6 +12,14 @@ const baseUrl = process.env.DATABASE_URL || '';
 const timeoutParams = baseUrl.includes('?') ? '&' : '?';
 const optimizedUrl = `${baseUrl}${timeoutParams}connection_limit=1&pool_timeout=10&connect_timeout=8`;
 
+// 临时诊断：输出运行时实际连接的数据库 host+库名（不含凭据），用于排查 Vercel 环境变量指向
+try {
+  const _diagUrl = new URL(baseUrl);
+  console.log('[db-diag] DATABASE_URL =', `${_diagUrl.host}${_diagUrl.pathname}`);
+} catch {
+  console.log('[db-diag] DATABASE_URL = unparseable or empty');
+}
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   datasources: {
