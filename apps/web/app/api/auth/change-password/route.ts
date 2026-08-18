@@ -20,7 +20,9 @@ import { validatePassword } from '@/lib/form-validation';
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, '当前密码为必填项'),
-  newPassword: z.string().min(8, '新密码长度至少为8个字符'),
+  newPassword: z.string()
+    .min(10, '新密码长度至少为10个字符')
+    .regex(/^(?=.*[a-zA-Z])(?=.*\d).+$/, '新密码必须包含字母和数字'),
 });
 
 export const dynamic = 'force-dynamic';

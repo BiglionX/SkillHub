@@ -22,20 +22,18 @@ export function validateEmail(email: string): string | null {
 }
 
 /**
- * 验证密码强度
+ * 验证密码强度（与 NvwaX 统一身份平台要求一致）
+ * 要求：至少10个字符，包含字母和数字
  */
 export function validatePassword(password: string): string | null {
   if (!password) {
     return '密码为必填项';
   }
-  if (password.length < 8) {
-    return '密码长度至少为8个字符';
+  if (password.length < 10) {
+    return '密码长度至少为10个字符';
   }
-  if (!/[A-Z]/.test(password)) {
-    return '密码必须包含至少一个大写字母';
-  }
-  if (!/[a-z]/.test(password)) {
-    return '密码必须包含至少一个小写字母';
+  if (!/[a-zA-Z]/.test(password)) {
+    return '密码必须包含至少一个字母';
   }
   if (!/[0-9]/.test(password)) {
     return '密码必须包含至少一个数字';
