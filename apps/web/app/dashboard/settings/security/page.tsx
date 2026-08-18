@@ -193,10 +193,11 @@ export default function SecuritySettingsPage() {
         </form>
       </div>
 
-      {/* OAuth 登录提示 */}
+      {/* 本地账号登录提示 */}
       <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
         <p className="text-sm text-blue-800">
-          <strong>提示：</strong>您当前使用 GitHub OAuth 登录。如需设置密码，请先在账户设置中绑定邮箱和密码登录方式。
+          <strong>提示：</strong>您正在使用 SkillHub 本地账号。如需修改密码，请填写上方表单。
+          通过第三方账号（ProClaw/OIDC）登录的用户如需设置本地密码，请联系管理员。
         </p>
       </div>
 

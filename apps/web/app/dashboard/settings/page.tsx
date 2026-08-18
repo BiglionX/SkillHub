@@ -96,19 +96,27 @@ export default function ProfileSettingsPage() {
         imageUrl = uploadData.url;
       }
 
-      // TODO: 调用 API 更新用户资料
-      // const response = await fetch('/api/users/profile', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ ...data, image: imageUrl }),
-      // });
+      // 调用 API 更新用户资料
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, image: imageUrl }),
+      });
 
-      // 临时方案：更新 session
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '更新失败');
+      }
+
+      const result = await response.json();
+
+      // 更新 session
       await update({
         ...session,
         user: {
           ...session?.user,
           name: data.name,
+          email: data.email,
           image: imageUrl,
         },
       });
