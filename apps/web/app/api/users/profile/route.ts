@@ -84,8 +84,8 @@ export async function PUT(request: Request) {
     if (image !== undefined && image !== currentUser.image) {
       changes.image = { old: currentUser.image, new: image };
     }
-    if (bio !== undefined && bio !== (currentUser as Record<string, unknown>).bio) {
-      changes.bio = { old: (currentUser as Record<string, unknown>).bio, new: bio };
+    if (bio !== undefined && bio !== currentUser.bio) {
+      changes.bio = { old: currentUser.bio, new: bio };
     }
 
     if (Object.keys(changes).length > 0) {
