@@ -18,7 +18,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       # corepack 读取 package.json 的 packageManager 字段（pnpm@9.15.4），
       # 不依赖 pnpm/action-setup（该 action 与 packageManager 字段冲突会失败）
@@ -51,7 +50,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'pnpm'
 
       # corepack 读取 package.json 的 packageManager 字段（pnpm@9.15.4），
       # 不依赖 pnpm/action-setup（该 action 与 packageManager 字段冲突会失败）
