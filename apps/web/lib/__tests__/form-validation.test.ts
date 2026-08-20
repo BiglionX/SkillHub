@@ -34,11 +34,11 @@ describe('表单验证工具函数', () => {
     });
 
     it('应该拒绝弱密码', () => {
+      // 密码策略与 NvwaX 统一身份平台一致：至少10个字符，包含字母和数字
       expect(validatePassword('')).toBe('密码为必填项');
-      expect(validatePassword('short')).toBe('密码长度至少为8个字符');
-      expect(validatePassword('nouppercase1')).toBe('密码必须包含至少一个大写字母');
-      expect(validatePassword('NOLOWERCASE1')).toBe('密码必须包含至少一个小写字母');
-      expect(validatePassword('NoNumbers')).toBe('密码必须包含至少一个数字');
+      expect(validatePassword('short')).toBe('密码长度至少为10个字符');
+      expect(validatePassword('abcdefghij')).toBe('密码必须包含至少一个数字');
+      expect(validatePassword('1234567890')).toBe('密码必须包含至少一个字母');
     });
   });
 

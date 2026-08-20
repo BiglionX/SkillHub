@@ -12,6 +12,12 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  // 忽略 .next（含 standalone 复制的 package.json，避免 haste 名字冲突）与测试产物
+  modulePathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/coverage/',
+    '<rootDir>/playwright-report/',
+  ],
   testPathIgnorePatterns: ['<rootDir>/tests/', '<rootDir>/app/api/__tests__/mocks.ts'],
 };
 

@@ -23,5 +23,15 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // 测试文件由 tsconfig.test.json（jest 类型）/ tests/tsconfig.json（Playwright 类型）负责，
+    // 不参与应用构建/typecheck，避免 jest-dom matcher 与路由 Promise params 的类型噪音
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/__tests__/**",
+    "tests"
+  ]
 }
