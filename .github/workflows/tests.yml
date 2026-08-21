@@ -14,15 +14,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      # 用 runner 预装 node 先启用 corepack，确保 pnpm 在 PATH 上
+      #（setup-node@v5 检测到 pnpm-workspace 时会调用 pnpm，必须先就绪）
+      - name: Enable pnpm (corepack, pre-installed node)
+        run: |
+          node --version
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-
-      # corepack 读取 package.json 的 packageManager 字段（pnpm@9.15.4），
-      # 不依赖 pnpm/action-setup（该 action 与 packageManager 字段冲突会失败）
-      - name: Enable pnpm (corepack)
-        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -46,15 +50,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      # 用 runner 预装 node 先启用 corepack，确保 pnpm 在 PATH 上
+      #（setup-node@v5 检测到 pnpm-workspace 时会调用 pnpm，必须先就绪）
+      - name: Enable pnpm (corepack, pre-installed node)
+        run: |
+          node --version
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-
-      # corepack 读取 package.json 的 packageManager 字段（pnpm@9.15.4），
-      # 不依赖 pnpm/action-setup（该 action 与 packageManager 字段冲突会失败）
-      - name: Enable pnpm (corepack)
-        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
