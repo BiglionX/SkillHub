@@ -225,6 +225,9 @@ jobs:
   # 安全扫描
   security:
     runs-on: ubuntu-latest
+    # codeql upload-sarif 需要写 security-events 才能上传扫描结果
+    permissions:
+      security-events: write
 
     steps:
       - name: Checkout code
