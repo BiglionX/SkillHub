@@ -70,6 +70,10 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @skillhub/web run db:generate
 
+      # 全新 checkout 无 workspace 包 dist/，先构建 search-sdk/widget（next dev 运行时需要）
+      - name: Build workspace packages
+        run: pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build
+
       - name: Cypress run
         uses: cypress-io/github-action@v7
         with:
