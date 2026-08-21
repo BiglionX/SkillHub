@@ -140,7 +140,7 @@ jobs:
           NEXTAUTH_URL: http://localhost:3000
 
       - name: Run E2E tests
-        uses: cypress-io/github-action@v6
+        uses: cypress-io/github-action@v7
         with:
           working-directory: apps/web
           start: pnpm start

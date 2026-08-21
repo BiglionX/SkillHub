@@ -71,7 +71,7 @@ jobs:
         run: pnpm --filter @skillhub/web run db:generate
 
       - name: Cypress run
-        uses: cypress-io/github-action@v6
+        uses: cypress-io/github-action@v7
         with:
           working-directory: apps/web
           start: pnpm dev
