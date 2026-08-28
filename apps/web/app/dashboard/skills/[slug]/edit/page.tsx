@@ -64,7 +64,15 @@ export default function EditSkillPage() {
 
   // 更新技能
   const updateMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: {
+      name: string;
+      slug: string;
+      description: string;
+      repositoryUrl: string;
+      category: string;
+      tags: string[];
+      namespaceId: string | null;
+    }) => {
       const response = await fetch(`/api/skills/${slug}`, {
         method: 'PUT',
         headers: {

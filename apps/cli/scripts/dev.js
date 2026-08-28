@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-env node */
 const { spawn } = require('child_process');
 const path = require('path');
 const os = require('os');

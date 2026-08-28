@@ -1,4 +1,4 @@
-/* eslint-disable */
+ 
 import type { SkillSearchResult } from '@skillhub/search-sdk';
 
 /**

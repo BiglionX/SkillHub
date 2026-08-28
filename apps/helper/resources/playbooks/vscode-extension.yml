@@ -1,0 +1,48 @@
+# VSCode 扩展剧本（M2 内置白名单 #2）
+# 用 code CLI 安装 .vsix
+
+id: vscode-extension@v1
+software: vscode
+description: 安装 VSCode .vsix 扩展
+preflight:
+  - detect: software
+  - ensure-disk-space: 50MB
+
+steps:
+  - id: download
+    type: http
+    description: 下载扩展包
+    url: ${skill.download_url}
+    sha256: ${skill.checksum}
+    to: ${temp_dir}/extension.vsix
+
+  - id: install
+    type: command
+    description: 通过 VSCode CLI 安装扩展
+    cmd:
+        windows: code.cmd
+        macos: code
+        linux: code
+    args:
+      - --install-extension
+      - ${temp_dir}/extension.vsix
+
+  - id: verify
+    type: command
+    description: 验证扩展已启用
+    cmd:
+        windows: code.cmd
+        macos: code
+        linux: code
+    args:
+      - --list-extensions
+      - ${skill.vsix_id}
+
+success:
+  message: "安装成功！重启 VSCode 后生效。"
+  cta:
+    label: "打开 VSCode"
+    action: open-path:${software.path}
+
+failure:
+  rollback: false

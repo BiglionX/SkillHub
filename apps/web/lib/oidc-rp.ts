@@ -280,12 +280,12 @@ export async function logout(refreshToken: string): Promise<void> {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       const code = (data.error || 'server_error') as OidcErrorCode;
-      // eslint-disable-next-line no-console
+       
       console.warn(`[OIDC] Logout warning: ${code}`, data.error_description);
     }
   } catch (err) {
     // 登出是尽力而为的操作，不抛出错误
-    // eslint-disable-next-line no-console
+     
     console.warn('[OIDC] Logout network error (non-fatal):', err);
   }
 }

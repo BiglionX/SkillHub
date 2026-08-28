@@ -1,0 +1,15 @@
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# Frontend build
+src/dist/
+node_modules/
+
+# Local runtime data（用户 LLM Key 等敏感信息）
+.data/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store

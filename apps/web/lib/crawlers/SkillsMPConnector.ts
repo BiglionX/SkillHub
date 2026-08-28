@@ -144,7 +144,7 @@ export class SkillsMPConnector {
           return await this.client.request(error.config);
         }
         throw new Error('No request config available for retry');
-      } catch (retryError) {
+      } catch {
         retryCount++;
         if (retryCount >= maxRetries) {
           throw new Error(`Rate limit retry failed after ${maxRetries} attempts`);

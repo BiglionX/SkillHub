@@ -5,7 +5,7 @@
  * 由 CLI `skillhub skill import` 调用
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { parseSkillMd, SkillMdParseError } from '@/lib/skills/skill-md-parser';
 import {

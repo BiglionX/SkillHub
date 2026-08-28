@@ -6,7 +6,7 @@
 // 检测是否在 Vercel 环境
 const isVercel = process.env.VERCEL === '1';
 
-/* eslint-disable no-unused-vars */
+ 
 interface RedisCache {
   get(key: string): Promise<unknown>;
   set(key: string, value: unknown, ttl?: number): Promise<void>;
@@ -14,7 +14,7 @@ interface RedisCache {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
 }
-/* eslint-enable no-unused-vars */
+ 
 
 let redisCache: RedisCache;
 

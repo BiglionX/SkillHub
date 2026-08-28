@@ -30,7 +30,7 @@ export default function NamespacesPage() {
 
   // 创建命名空间
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: { name: string; slug: string; description?: string; type: 'PERSONAL' | 'TEAM' | 'GLOBAL' }) => {
       const response = await fetch('/api/namespaces', {
         method: 'POST',
         headers: {

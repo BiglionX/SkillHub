@@ -84,7 +84,16 @@ export async function POST(request: NextRequest) {
 
     // 创建任务
     const store = getTaskStore();
-    const initialMessage = messages[0]!;
+    const initialMessage = messages[0];
+    if (!initialMessage) {
+      return NextResponse.json(
+        {
+          error: 'INVALID_REQUEST',
+          message: 'messages array must contain at least one message',
+        },
+        { status: 400 },
+      );
+    }
     const task = store.create({
       skillSlug,
       initialMessage,

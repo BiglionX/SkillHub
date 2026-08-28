@@ -116,8 +116,11 @@ export function runTask(sandbox: Sandbox, task: SmokeTask): Promise<TaskResult> 
     });
   }
 
+  // 上面 if 块已确保 command 非空，缓存为本地变量供内部闭包使用
+  const command = task.command;
+
   return new Promise((resolve) => {
-    const child = spawn(task.command!, {
+    const child = spawn(command, {
       cwd: sandbox.root,
       shell: true,
       windowsHide: true,

@@ -1,0 +1,110 @@
+/* SkillHub Helper 自定义样式（不依赖 Tailwind） */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* 工具类 */
+.min-h-screen { min-height: 100vh; }
+.bg-gray-50 { background: #f9fafb; }
+.bg-white { background: #fff; }
+.bg-blue-50 { background: #eff6ff; }
+.bg-blue-600 { background: #2563eb; }
+.bg-blue-700 { background: #1d4ed8; }
+.bg-gray-100 { background: #f3f4f6; }
+.bg-gray-200 { background: #e5e7eb; }
+
+.text-gray-900 { color: #111827; }
+.text-gray-700 { color: #374151; }
+.text-gray-500 { color: #6b7280; }
+.text-blue-600 { color: #2563eb; }
+.text-green-600 { color: #16a34a; }
+.text-red-600 { color: #dc2626; }
+.text-white { color: #fff; }
+
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 14px; }
+.text-lg { font-size: 18px; }
+.text-2xl { font-size: 24px; }
+
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+
+.px-3 { padding-left: 12px; padding-right: 12px; }
+.px-4 { padding-left: 16px; padding-right: 16px; }
+.px-6 { padding-left: 24px; padding-right: 24px; }
+.py-2 { padding-top: 8px; padding-bottom: 8px; }
+.py-8 { padding-top: 32px; padding-bottom: 32px; }
+
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 12px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-8 { margin-bottom: 32px; }
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 12px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+
+.mx-auto { margin-left: auto; margin-right: auto; }
+.max-w-2xl { max-width: 672px; }
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.flex-1 { flex: 1; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+
+.space-y-4 > * + * { margin-top: 16px; }
+
+.rounded { border-radius: 6px; }
+.rounded-lg { border-radius: 8px; }
+.rounded-xl { border-radius: 12px; }
+.rounded.border { border: 1px solid; }
+.border { border: 1px solid; }
+.border-gray-200 { border-color: #e5e7eb; }
+.border-gray-300 { border-color: #d1d5db; }
+.border-blue-500 { border-color: #3b82f6; }
+
+.w-full { width: 100%; }
+.h-4 { height: 16px; }
+.w-4 { width: 16px; }
+
+.hover\:bg-blue-700:hover { background: #1d4ed8; }
+.hover\:bg-gray-200:hover { background: #e5e7eb; }
+.hover\:underline:hover { text-decoration: underline; }
+
+.disabled\:opacity-50:disabled { opacity: 0.5; }
+
+.focus\:border-blue-500:focus {
+  border-color: #3b82f6;
+  outline: none;
+}

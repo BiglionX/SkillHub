@@ -2,140 +2,85 @@
 
 ## 📋 更新信息
 
-**日期**: 2026年4月23日  
+**最后更新**: 2026年（最新一次）
 **状态**: ✅ 已完成
 
-### 更新内容
+### 更新策略
 
-将项目根目录的 `skillhub.png` 复制到 `apps/web/public/skillhub.png`，替换原有的 Logo 图片。
+`apps/web/scripts/update-logo.mjs` 提供一行命令从单一源 PNG（默认 `skillhub-logo.png`）同步全栈 logo + favicon 资源，保证视觉一致性。脚本会同时清理根目录冗余副本（`logo2.png` / `logo.jpeg` / 旧 `skillhub.png`），与 [`docs/deployment/DEPLOYMENT_CLEANUP_GUIDE.md`](../deployment/DEPLOYMENT_CLEANUP_GUIDE.md) 和 `scripts/cleanup-before-deploy.{sh,bat}` 保持一致。
 
-## 📊 文件信息
+```bash
+# 从 apps/web/ 执行；--root 同步根目录 logo.png 并删除旧副本
+node scripts/update-logo.mjs --root
+```
 
-### 源文件
-- **路径**: `D:\BigLionX\SkillHub\skillhub.png`
-- **大小**: 407,958 字节 (约 398 KB)
-- **修改时间**: 2026-04-22 14:23:54
+## 📊 当前资源清单
 
-### 目标文件
-- **路径**: `D:\BigLionX\SkillHub\apps\web\public\skillhub.png`
-- **大小**: 407,958 字节 (约 398 KB)
-- **修改时间**: 2026-04-22 14:23:54
+| 文件 | 尺寸 | 用途 |
+| --- | --- | --- |
+| `apps/web/public/skillhub.png` | 1200×1200 | OG / Twitter 卡片、`/login` 等页面 `<img src="/skillhub.png">`、json-ld publisher.logo |
+| `apps/web/public/logo.png` | 512×512 | A2A Agent Card `iconUrl` |
+| `apps/web/public/icon.png` | 512×512 | 通用 fallback（Next metadata `icons.icon`） |
+| `apps/web/public/apple-touch-icon.png` | 180×180 | iOS 主屏图标（Apple HIG 要求） |
+| `apps/web/public/favicon.ico` | 多尺寸 16/32/48 PNG-in-ICO | 浏览器标签页 / PWA |
+| `apps/web/app/icon.png` | 512×512 | Next.js App Router icon route（自动被 `<head>` 注入） |
+| `logo.png`（仓库根） | 512×512 | 与部署清理脚本对齐的规范副本 |
 
-## 🎯 影响范围
+## 🎯 影响范围（自动覆盖）
 
-以下页面使用此 Logo：
+### 元数据与社交卡片
+- `apps/web/app/layout.tsx`：`metadata.icons.{icon,apple}` + `openGraph.images[0]` + `twitter.images[0]` + json-ld `publisher.logo.url`
+- `apps/web/lib/a2a/agent-card.ts`：A2A `AgentCard.iconUrl = ${BASE_URL}/logo.png`
+- `docs/integration/A2A_INTEGRATION_GUIDE.md` 示例 `iconUrl`
 
-### 认证页面
-1. ✅ **登录页面** - `/login`
-   - 文件: `apps/web/app/(auth)/login/page.tsx`
-   - 引用: `<img src="/skillhub.png" ... />`
-
-2. ✅ **注册页面** - `/register`
-   - 文件: `apps/web/app/(auth)/register/page.tsx`
-   - 引用: `<img src="/logo.png" ... />`（注意：注册页面使用的是 logo.png）
-
-3. ✅ **忘记密码页面** - `/forgot-password`
-   - 文件: `apps/web/app/(auth)/forgot-password/page.tsx`
-   - 引用: `<img src="/logo.png" ... />`（注意：使用的是 logo.png）
-
-4. ✅ **重置密码页面** - `/reset-password`
-   - 文件: `apps/web/app/(auth)/reset-password/page.tsx`
-   - 引用: `<img src="/logo.png" ... />`（注意：使用的是 logo.png）
-
-### 其他页面
-- 首页导航栏可能也使用了 Logo（需要检查）
+### 页面 `<img>` 引用
+- `apps/web/app/(auth)/login/page.tsx`
+- `apps/web/app/dashboard/layout.tsx`
+- `apps/web/app/skills/PublicSkillsClient.tsx`（页面顶部 + 列表项）
+- `apps/web/app/sdk/page.tsx`
+- `apps/web/app/widget-demo/page.tsx`
+- `apps/web/app/opensource/dsh/page.tsx`
+- `apps/web/app/bounties/page.tsx`
+- `apps/web/app/skills/[slug]/page.tsx`（`generateMetadata` 的 `openGraph.images` + `twitter.images`）
 
 ## ⚠️ 注意事项
 
-### 当前使用情况
+### 现有图片命名一致性
+所有页面统一使用 `/skillhub.png`（与 `metadata.icons` 解耦），`/logo.png` 仅用于 A2A 协议 Agent Card。`docs/features/LOGO_IMAGE_UPDATE.md` 历史版本提到的"register/forgot-password/reset-password 仍用 logo.png"已不再准确——这些页面在最新代码里均已切换或不再保留独立引用。
 
-| 页面 | 使用的图片 | 是否需要更新 |
-|------|-----------|-------------|
-| 登录页面 | `/skillhub.png` | ✅ 已更新 |
-| 注册页面 | `/logo.png` | ❓ 可能需要统一 |
-| 忘记密码 | `/logo.png` | ❓ 可能需要统一 |
-| 重置密码 | `/logo.png` | ❓ 可能需要统一 |
-
-### 建议
-
-为了保持一致性，建议：
-
-**选项 1**: 统一使用 `skillhub.png`
-```tsx
-// 将所有页面的 Logo 引用改为
-<img src="/skillhub.png" alt="..." />
-```
-
-**选项 2**: 保持现状
-- 登录页面使用 `skillhub.png`
-- 其他页面使用 `logo.png`
-- 确保两个图片视觉一致
+### 测试断言
+- `apps/web/tests/password-login.spec.ts`：`img[alt="Skill Hub Logo"]` 的 `src` 必须为 `/skillhub.png`，与新资源一致。
 
 ## 🔍 验证步骤
 
-### 1. 清除浏览器缓存
+### 1. 重新构建并刷新浏览器
+```bash
+pnpm --filter @skillhub/web run dev
+# 按 F12 → 右键刷新 → "清空缓存并硬性重新加载"
 ```
-- 按 F12 打开开发者工具
-- 右键刷新按钮
-- 选择"清空缓存并硬性重新加载"
-```
 
-### 2. 访问各页面
-- [ ] http://localhost:3002/login - 检查 Logo 是否更新
-- [ ] http://localhost:3002/register - 检查 Logo
-- [ ] http://localhost:3002/forgot-password - 检查 Logo
-- [ ] http://localhost:3002/reset-password - 检查 Logo
+### 2. 视觉检查
+- [ ] 浏览器标签页 favicon 显示新 logo
+- [ ] 登录页 / 仪表盘 logo 显示新 logo
+- [ ] iOS Safari "添加到主屏幕" → 图标为新 logo（180×180 圆角效果）
+- [ ] 社交卡片（Facebook / Twitter 调试器）显示新 logo
+- [ ] 暗色模式 / 高 DPI 设备清晰
 
-### 3. 视觉检查
-- [ ] Logo 显示清晰
-- [ ] Logo 尺寸合适（240px × 240px）
-- [ ] Logo 可点击跳转到首页
-- [ ] 悬停效果正常
-
-## 📝 执行命令
-
-```powershell
-# 复制 Logo 文件
-Copy-Item -Path ".\skillhub.png" -Destination ".\apps\web\public\skillhub.png" -Force
-
-# 验证文件大小
-Get-Item ".\skillhub.png" | Select-Object Name, Length
-Get-Item ".\apps\web\public\skillhub.png" | Select-Object Name, Length
+### 3. 自动化检查
+```bash
+pnpm --filter @skillhub/web run typecheck
+pnpm --filter @skillhub/web run test -- --testPathPattern=password-login
 ```
 
 ## 🔄 后续操作
 
-如果需要统一所有页面使用同一个 Logo 文件：
-
-### 方案 A: 全部使用 skillhub.png
-
-修改以下文件，将 `/logo.png` 改为 `/skillhub.png`：
-- `apps/web/app/(auth)/register/page.tsx`
-- `apps/web/app/(auth)/forgot-password/page.tsx`
-- `apps/web/app/(auth)/reset-password/page.tsx`
-
-### 方案 B: 同步两个文件
-
-如果希望保持不同的文件名但内容一致：
-```powershell
-# 将 skillhub.png 复制为 logo.png
-Copy-Item -Path ".\apps\web\public\skillhub.png" -Destination ".\apps\web\public\logo.png" -Force
-```
-
-## 💡 最佳实践
-
-1. **版本控制**: 确保新的 Logo 文件已添加到 Git
-2. **备份**: 保留旧版本的 Logo 作为备份
-3. **测试**: 在不同浏览器和设备上测试显示效果
-4. **文档**: 更新设计系统文档，记录 Logo 规范
+如未来再次更换 logo，只需：
+1. 把新源文件放到仓库根（或传入 `--source` 参数）覆盖 `skillhub-logo.png`
+2. 在 `apps/web/` 执行 `node scripts/update-logo.mjs --root`
+3. 提交 `apps/web/public/*`、`apps/web/app/icon.png`、`logo.png`，无需改任何 TSX / MD
 
 ## 🔗 相关文档
 
-- [认证页面 Logo 优化](./AUTH_PAGES_LOGO_IMPROVEMENT.md)
-- [登出后跳转策略](./LOGOUT_REDIRECT_STRATEGY.md)
-
----
-
-**执行者**: AI Assistant  
-**审核状态**: ✅ 已完成  
-**最后更新**: 2026年4月23日
+- [`docs/deployment/DEPLOYMENT_CLEANUP_GUIDE.md`](../deployment/DEPLOYMENT_CLEANUP_GUIDE.md)
+- [`scripts/cleanup-before-deploy.sh`](../../scripts/cleanup-before-deploy.sh) / [`scripts/cleanup-before-deploy.bat`](../../scripts/cleanup-before-deploy.bat)
+- [`docs/integration/A2A_INTEGRATION_GUIDE.md`](../integration/A2A_INTEGRATION_GUIDE.md)

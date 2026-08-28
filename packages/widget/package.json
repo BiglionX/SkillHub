@@ -9,8 +9,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react --external @skillhub/search-sdk",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch --external react --external @skillhub/search-sdk",
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch --external react",
     "clean": "rm -rf dist"
   },
   "keywords": [
@@ -24,10 +24,10 @@
   "license": "MIT",
   "peerDependencies": {
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
-    "@skillhub/search-sdk": ">=1.0.0"
+    "react-dom": ">=18.0.0"
   },
   "dependencies": {
+    "@skillhub/search-sdk": "workspace:*",
     "lucide-react": "^0.263.1"
   },
   "devDependencies": {

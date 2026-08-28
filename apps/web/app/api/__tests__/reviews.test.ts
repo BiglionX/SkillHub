@@ -4,7 +4,7 @@ import { GET, POST } from '../reviews/route';
 import { mockPrisma } from './mocks';
 
 // Auth mock is set up globally in jest.setup.ts (accessible via __mockAuth)
-const mockAuth = (global as any).__mockAuth;
+const mockAuth = global.__mockAuth;
 
 describe('Reviews API', () => {
   beforeEach(() => {

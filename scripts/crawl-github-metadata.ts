@@ -139,7 +139,7 @@ async function crawlGitHubMetadata() {
                 // 限制长度，避免数据库过大
                 readmeContent = readmeContent.substring(0, 50000);
               }
-            } catch (error) {
+            } catch {
               console.log(`   ⚠️  Could not fetch README for ${repo.full_name}`);
             }
 

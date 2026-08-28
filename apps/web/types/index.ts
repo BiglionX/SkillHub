@@ -73,10 +73,19 @@ export interface Review {
   reviewerId?: string;
   reviewNotes?: string;
   rejectionReason?: string;
-  automatedChecks?: any;
+  automatedChecks?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  skill?: {
+    id: string;
+    name: string;
+    slug: string;
+    author?: {
+      id: string;
+      name: string;
+    };
+  };
 }
 
 export type ReviewStatus =
@@ -98,15 +107,20 @@ export interface AuditLog {
   actorId?: string;
   actorIp?: string;
   userAgent?: string;
-  metadata?: any;
-  changes?: any;
+  metadata?: Record<string, unknown>;
+  changes?: Record<string, unknown>;
   status: 'success' | 'failure';
   errorMessage?: string;
   createdAt: string;
+  actor?: {
+    id: string;
+    name?: string;
+    email?: string;
+  };
 }
 
 // API 响应类型
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;

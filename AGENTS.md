@@ -30,6 +30,7 @@ packages/
 deer-flow/     vendored bytedance/deer-flow（智能体编排框架副本，仅供集成参考，不参与构建）
 skills/         仓库技能（Agent Skills 标准 SKILL.md）：repo-dev / skill-package-validator / skill-smoke-test / code-review，可被 DSH / DeerFlow / Claude Code 等 harness 加载
 docs/          开发计划 / 架构 / 集成指南
+              转型路线：docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md（v2.0，2026-08：按场景分类 + 三交付物）
 .github/workflows/  CI（pnpm + turbo）
 部署配置: apps/web/next.config.js（transpilePackages + standalone）、apps/web/vercel.json（Vercel）、根 Dockerfile.web + docker-compose.neon.yml + .dockerignore（Docker）、.env.production.example（env 模板）
 ```
@@ -67,7 +68,8 @@ docs/          开发计划 / 架构 / 集成指南
 - `NEXTAUTH_SECRET` / `NEXTAUTH_URL`：认证会话
 - `SKILLHUB_OIDC_CLIENT_ID` / `SKILLHUB_OIDC_CLIENT_SECRET`：NvwaX OIDC
 - `REDIS_URL` / `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`：缓存
-- `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ZHIPU_API_KEY`：Embedding/LLM
+- `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ZHIPU_API_KEY`：Embedding（云端托管）
+- ~~`DEEPSEEK_API_KEY`~~：**v2.0.2 起云端不再持有 LLM Key**。用户在桌面助手设置页填 Key，本地 AES 加密保存；Web 经助手转发调用 LLM。`LlmGateway` 服务口占位（`useCloudFallback=false`），未来云端托管可启用。详见 [ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md §6 D6](./docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)
 - `SKILLSMP_API_KEY`：SkillsMP 同步
 
 本地开发复制 `apps/web/.env.example` → `apps/web/.env.local` 并填真实值。

@@ -3,9 +3,33 @@ import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Link from 'next/link';
 import FeedbackButton from '@/components/skills/FeedbackButton';
-import SkillCard from '@/components/ui/SkillCard';
+// v3 M1：三形态 Deliverable
+import ContentDeliverableWrapper from '@/components/deliverables/content-deliverable-wrapper';
+import EnvironmentDeliverableWrapper from '@/components/deliverables/environment-deliverable-wrapper';
+import OAuthDeliverableWrapper from '@/components/deliverables/oauth-deliverable-wrapper';
 
 // Subcategory label mapping
+interface LlmConfigPayload {
+  model?: string;
+  system_prompt?: string;
+  input_schema?: { params?: unknown };
+  oauth_providers?: Array<{ id: string; name: string; logo?: string }>;
+}
+
+interface ExecutionConfigPayload {
+  target_software?: string;
+  install_type?: string;
+  install_command?: string;
+}
+
+interface RelatedSkill {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  similarity?: number;
+}
+
 const subcategoryLabels: Record<string, string> = {
   'ai_agent': 'AI代理',
   'llm_tools': 'LLM工具',
@@ -46,8 +70,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: 'Skill 不存在',
     };
   }
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://skillhub.proclaw.cc';
 
   return {
     title: skill.name,
@@ -95,6 +117,11 @@ export default async function PublicSkillDetailPage({ params }: Props) {
       repositoryUrl: true,
       packageUrl: true,
       createdAt: true,
+      // v3 M1：交付物分类 + LLM 配置
+      deliveryCategory: true,
+      llmConfig: true,
+      // v3 M1：执行配置（A 类的 install_type 在这里）
+      executionConfig: true,
       author: {
         select: {
           id: true,
@@ -123,15 +150,15 @@ export default async function PublicSkillDetailPage({ params }: Props) {
   }
 
   // 获取相关Skills（基于语义搜索）
-  let relatedSkills: any[] = [];
+  let relatedSkills: RelatedSkill[] = [];
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/skills/${skill.id}/related?limit=5`,
       { cache: 'no-store' }
     );
-    
+
     if (response.ok) {
-      const data = await response.json();
+      const data = (await response.json()) as { relatedSkills?: RelatedSkill[] };
       relatedSkills = data.relatedSkills || [];
     }
   } catch (error) {
@@ -230,6 +257,31 @@ export default async function PublicSkillDetailPage({ params }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 主内容区 */}
           <main className="lg:col-span-2 space-y-6">
+            {/* v3 M1：三形态 Deliverable 区块（按 deliveryCategory 分流） */}
+            {skill.deliveryCategory === 'CONTENT_GENERATION' && skill.llmConfig && (
+              <ContentDeliverableWrapper
+                slug={skill.slug}
+                skillName={skill.name}
+                llmConfig={skill.llmConfig as unknown as LlmConfigPayload}
+              />
+            )}
+            {skill.deliveryCategory === 'ENVIRONMENT_DEPENDENT' && (
+              <EnvironmentDeliverableWrapper
+                slug={skill.slug}
+                skillName={skill.name}
+                targetSoftware={(skill.executionConfig as unknown as ExecutionConfigPayload | null)?.target_software}
+                installType={(skill.executionConfig as unknown as ExecutionConfigPayload | null)?.install_type}
+                installCommand={(skill.executionConfig as unknown as ExecutionConfigPayload | null)?.install_command}
+              />
+            )}
+            {skill.deliveryCategory === 'OAUTH_AUTHORIZED' && (
+              <OAuthDeliverableWrapper
+                slug={skill.slug}
+                skillName={skill.name}
+                oauthProviders={(skill.llmConfig as unknown as LlmConfigPayload | null)?.oauth_providers}
+              />
+            )}
+
             {/* 描述 */}
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">简介</h2>
@@ -358,7 +410,7 @@ export default async function PublicSkillDetailPage({ params }: Props) {
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">相关 Skills</h3>
                 <div className="space-y-4">
-                  {relatedSkills.map((relatedSkill: any) => (
+                  {relatedSkills.map((relatedSkill) => (
                     <Link
                       key={relatedSkill.id}
                       href={`/skills/${relatedSkill.slug}`}

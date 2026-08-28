@@ -12,7 +12,7 @@ import { NextRequest } from 'next/server';
 import { GET } from '../search/popular/route';
 
 // Access global Prisma mock to set return values
-const prismaMock = (global as any).__mockPrisma;
+const prismaMock = global.__mockPrisma;
 
 describe('Popular Searches API', () => {
   beforeEach(() => {

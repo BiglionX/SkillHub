@@ -1,108 +1,215 @@
 # Playwright E2E 测试
 
-## 目录结构
+> **最后更新**: 2026-08-24
+> **维护者**: SkillHub Team
+
+## 📋 目录结构
 
 ```
-tests/
-├── password-login.spec.ts    # 密码登录功能测试
-├── tsconfig.json             # Playwright TypeScript 配置
-└── README.md                 # 本文档
+apps/web/tests/
+├── password-login.spec.ts       # 密码登录功能测试（基础 UI 测试）
+├── install-button.spec.ts       # InstallButton 降级链路测试（M2）
+├── tsconfig.json                # Playwright TypeScript 配置
+└── README.md                    # 本文档
 ```
 
-## 安装
+## 🚀 快速开始
 
-Playwright 已经在 `package.json` 中配置。如果尚未安装浏览器，运行：
+### ⚡ 一键跑测试（自动启 dev server）
 
-```bash
-npx playwright install
-```
-
-这将安装 Chromium、Firefox 和 WebKit 浏览器用于测试。
-
-## 运行测试
-
-### 1. 启动开发服务器
-
-在运行测试之前，确保开发服务器正在运行：
+从 `apps/web` 目录直接跑——**不需要**手动启 dev server，Playwright `webServer` 配置会自动：
 
 ```bash
 cd apps/web
-npm run dev
+pnpm exec playwright test
 ```
 
-服务器应该运行在 `http://localhost:3000`
+第一次跑会触发 `pnpm dev`（约 30-60 秒冷启动）；之后 `reuseExistingServer: true` 会复用本地已起的服务。
 
-### 2. 运行 Playwright 测试
-
-#### 方式一：运行所有测试
+### 🎯 跑指定测试文件
 
 ```bash
-npx playwright test
+pnpm exec playwright test install-button.spec.ts
+pnpm exec playwright test password-login.spec.ts
 ```
 
-#### 方式二：运行特定测试文件
+### 🖱️ UI 模式（推荐用于开发）
 
 ```bash
-npx playwright test tests/password-login.spec.ts
+pnpm exec playwright test --ui
 ```
 
-#### 方式三：以 UI 模式运行（推荐用于调试）
+可视化跑测、可设断点、看截图视频。
+
+### 👀 Headed 模式（看浏览器跑）
 
 ```bash
-npx playwright test --ui
+pnpm exec playwright test --headed
 ```
 
-这会打开 Playwright UI，您可以：
-- 可视化地查看测试执行
-- 逐步调试测试
-- 查看截图和视频
-
-#### 方式四：以 headed 模式运行（显示浏览器）
+### 📊 查看 HTML 报告
 
 ```bash
-npx playwright test --headed
+pnpm exec playwright show-report
 ```
 
-### 3. 查看测试报告
+默认起 `http://localhost:9323`。
 
-测试完成后，查看 HTML 报告：
+---
 
-```bash
-npx playwright show-report
+## ⚙️ 配置说明（`playwright.config.ts`）
+
+### webServer 自动启停（v2.0 关键变更）
+
+```ts
+webServer: {
+  command: 'pnpm dev',
+  cwd: __dirname,                // apps/web 目录
+  url: 'http://localhost:3000',
+  reuseExistingServer: !process.env.CI,  // 本地复用，CI 拉新进程
+  timeout: 180_000,              // Next 15 dev 冷启动慢，180s 兜底
+  stdout: 'pipe',
+  stderr: 'pipe',
+},
 ```
 
-## 配置
+### 为什么需要这个配置？
 
-### playwright.config.ts
+**问题场景（v1. 已被注释）**：
 
-主要配置项：
+之前 `webServer` 段被注释掉了，导致：
+- 跑测试时 `localhost:3000` 无进程监听
+- 12 个 E2E 用例（`install-button.spec.ts`）全部 `ECONNREFUSED ::1:3000`
+- HTTP 层根本到不了 → 即使路由正确、数据库正确，也全部失败
 
-```typescript
-export default defineConfig({
-  testDir: './tests',           // 测试目录
-  baseURL: 'http://localhost:3000',  // 基础 URL
-  reporter: 'html',             // 报告格式
-  projects: [                   // 浏览器配置
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-  ],
-});
-```
+**修复后（v2.0）**：
+- Playwright 自动 `pnpm dev` 起 Next dev server
+- 等待 `http://localhost:3000` 可访问再跑测试
+- CI 环境会拉新进程；本地若已有 dev server 则直接复用
 
-### tests/tsconfig.json
+### 其他关键配置
 
-Playwright 测试的 TypeScript 配置：
-
-```json
+```ts
 {
-  "compilerOptions": {
-    "types": ["@playwright/test"]  // 包含 Playwright 类型
-  }
+  testDir: './tests',
+  testMatch: '**/*.spec.{ts,tsx,js,jsx}',
+  fullyParallel: true,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: { executablePath: 'F:\\chrome-win64\\chrome.exe' },
+      },
+    },
+  ],
 }
 ```
 
-## 编写测试
+---
+
+## 🔧 故障排查
+
+### 0. v2.2 新增：`Test timeout of 30000ms exceeded`（API 不响应）
+
+**症状**：所有 API测试用例 fail，错误是 `Test timeout of 30000ms exceeded.`，但**没有 ECONNREFUSED**——dev server 实际启动了（因为 public `/skillhub.png` 测试能过）。
+
+**根因**：Next 15 dev 首次访问某个 Route Handler / Page 时要 webpack/turbopack 编译，单次编译可耗时 30+ 秒。20 个 worker 同时抢首次编译 → 全部 30s timeout。
+
+**修复（v2.2 已落地，v2.3 修正 globalSetup export 签名）**：
+1. `playwright.config.ts` 关闭 `fullyParallel`，`workers: 1`（避免抢首编）
+2. 加 `globalSetup` → `scripts/warmup-dev-server.mjs`：所有 worker 启动前按顺序预热 9 个 API/页面（让首次编译在 dev 启动阶段完成）
+3. 单 test timeout 从 30s 提到 60s（确保单个编译窗口够）
+4. `actionTimeout: 30_000` + `navigationTimeout: 60_000`
+
+**手动验证**：
+
+```bash
+# 1. 起 dev
+pnpm dev &
+# 2. 等启动完，单跑一个 API
+curl -m 5 http://localhost:3000/api/v2/healthcheck
+# 期望: {"status":"ok",...}
+
+# 3. 跑预热脚本看每个 API 的首次编译耗时
+pnpm run test:e2e:warmup
+# 期望: 第一遍慢（10-30s/路由），第二遍快（<100ms）
+```
+
+**如果单跑还是 timeout**：dev server 本身有问题（比如 instrumentation 卡住、或中间件 matcher 配错），看 [§故障排查 §1](#1-econnrefused-13000-或-econnrefused-1270013000) 和 §2 检查。
+
+### 1. `ECONNREFUSED ::1:3000` 或 `ECONNREFUSED 127.0.0.1:3000`
+
+**症状**：所有测试用例 fail，错误是 `connect ECONNREFUSED`。
+
+**根因**：Playwright webServer 没自动起 / dev server 没起来。
+
+**排查步骤**：
+
+```bash
+# 1. 单独启 dev server 看是否能起
+cd apps/web
+pnpm dev
+# 期望输出: "Ready in Xms" 或 "started server on http://localhost:3000"
+
+# 2. 手动 curl 一下
+curl http://localhost:3000
+# 期望: HTML 响应
+
+# 3. 如果上面 OK，再跑测试
+pnpm exec playwright test install-button.spec.ts
+```
+
+**常见原因**：
+- **端口冲突**：另一个进程占了 3000 → `lsof -i :3000` / `netstat -ano | findstr :3000` 查谁占用
+- **IPv6 问题**：Node 把 `localhost` 解析为 `::1` 而 dev server 只 listen v4 → `playwright.config.ts` 的 `webServer.url` 用 `127.0.0.1:3000` 替代
+- **首次冷启动超时**：Next 15 dev 启动慢，把 `webServer.timeout` 加大到 180000（已经设了）
+
+### 2. 测试本地能跑，CI 跑失败
+
+**症状**：本地 `pnpm exec playwright test` 全绿，GitHub Actions 跑失败。
+
+**可能原因**：
+- CI 没装 Playwright 浏览器：`npx playwright install --with-deps`
+- CI 没启 webServer：检查 `webServer.reuseExistingServer: !process.env.CI`（`process.env.CI=true` 时强制起新进程）
+- CI 端口被墙：默认 3000 一般 OK，特殊情况用 `webServer.port` 改
+
+### 3. IPv6/IPv4 解析问题
+
+**症状**：`connect ECONNREFUSED ::1:3000`（IPv6）
+
+**修复**：在 `playwright.config.ts` 把 `baseURL` 和 `webServer.url` 都改成 `http://127.0.0.1:3000`：
+
+```ts
+use: { baseURL: 'http://127.0.0.1:3000' },
+webServer: { url: 'http://127.0.0.1:3000', ... },
+```
+
+### 4. 单个测试慢 / 超时
+
+```typescript
+test('slow test', async ({ page }) => {
+  test.setTimeout(60000);  // 单测超时设 60 秒
+  // ...
+});
+```
+
+或全局：
+
+```ts
+export default defineConfig({ timeout: 60000, ... });
+```
+
+---
+
+## ✍️ 编写测试
 
 ### 基本结构
 
@@ -111,13 +218,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('功能模块测试', () => {
   test('应该能够执行某个操作', async ({ page }) => {
-    // 1. 导航到页面
     await page.goto('/some-page');
-    
-    // 2. 执行操作
     await page.click('#button');
-    
-    // 3. 验证结果
     await expect(page.locator('.success')).toBeVisible();
   });
 });
@@ -126,163 +228,65 @@ test.describe('功能模块测试', () => {
 ### 常用 API
 
 #### 导航
-
 ```typescript
 await page.goto('/login');
 await page.waitForLoadState('networkidle');
 ```
 
 #### 元素操作
-
 ```typescript
-// 点击
 await page.click('button[type="submit"]');
-
-// 填写表单
 await page.fill('input[email]', 'test@example.com');
-await page.fill('input[password]', 'password123');
-
-// 选择选项
 await page.selectOption('select#role', 'admin');
 ```
 
 #### 断言
-
 ```typescript
-// 可见性
 await expect(page.locator('.error')).toBeVisible();
-
-// 文本内容
 await expect(page.locator('h1')).toContainText('Welcome');
-
-// URL
 expect(page.url()).toContain('/dashboard');
-
-// 元素数量
 await expect(page.locator('.item')).toHaveCount(5);
 ```
 
-#### 等待
-
+#### API 直接调用（`page.request`）
 ```typescript
-// 等待元素出现
-await page.waitForSelector('.loaded');
-
-// 等待导航
-await Promise.all([
-  page.waitForNavigation(),
-  page.click('a[href="/next-page"]')
-]);
-
-// 固定等待（尽量避免）
-await page.waitForTimeout(1000);
+// 不走浏览器 UI，直接打 HTTP（适合后端路由契约测试）
+const res = await page.request.post('/api/v2/intent/parse', {
+  data: { query: '帮我修图' },
+});
+expect(res.ok()).toBeTruthy();
+const data = await res.json();
 ```
 
-## 测试示例
+这是 `install-button.spec.ts` 的主要模式（12 个用例都是 API 契约测试）。
 
-### password-login.spec.ts
+### 调试技巧
 
-测试密码登录功能：
-
-1. ✅ 成功登录
-2. ✅ 密码错误时显示错误信息
-3. ✅ 必填字段验证
-
-## 调试技巧
-
-### 1. 使用 --debug 标志
-
+#### 1. `--debug` 标志
 ```bash
-npx playwright test --debug
+pnpm exec playwright test --debug
 ```
+打开浏览器开发者工具，每个步骤前暂停。
 
-这会打开浏览器开发者工具并暂停在每个步骤。
-
-### 2. 截图
-
+#### 2. 截图
 ```typescript
 await page.screenshot({ path: 'screenshot.png' });
 ```
 
-### 3. 追踪
-
-在 `playwright.config.ts` 中启用：
-
-```typescript
-use: {
-  trace: 'on-first-retry',
-}
-```
-
-查看追踪：
-
+#### 3. Trace
+`playwright.config.ts` 已开 `trace: 'on-first-retry'`。
 ```bash
-npx playwright show-trace trace.zip
+pnpm exec playwright show-trace trace.zip
 ```
 
-### 4. 控制台日志
-
+#### 4. 控制台日志
 ```typescript
 page.on('console', msg => console.log(msg.text()));
 ```
 
-## 常见问题
+---
 
-### TypeScript 错误
-
-如果在 IDE 中看到 `'page' implicitly has an 'any' type` 错误：
-
-**原因**：VSCode 可能没有正确加载 `tests/tsconfig.json`
-
-**解决方案**：
-1. 重启 VSCode TypeScript 服务器
-   - 按 `Ctrl+Shift+P` (Windows) 或 `Cmd+Shift+P` (Mac)
-   - 输入 "TypeScript: Restart TS Server"
-   - 按 Enter
-
-2. 或者在 VSCode 设置中配置：
-   ```json
-   {
-     "typescript.tsdk": "node_modules/typescript/lib"
-   }
-   ```
-
-3. 这些错误不影响测试运行，只是 IDE 的类型检查问题
-
-### 超时错误
-
-如果测试因超时而失败：
-
-```typescript
-// 增加超时时间
-test('slow test', async ({ page }) => {
-  test.setTimeout(60000); // 60秒
-  // ...
-});
-```
-
-或在配置文件中：
-
-```typescript
-export default defineConfig({
-  timeout: 60000,
-});
-```
-
-### 元素未找到
-
-确保：
-1. 页面已完全加载
-2. 选择器正确
-3. 元素确实存在
-
-使用 waitForSelector：
-
-```typescript
-await page.waitForSelector('#my-element', { timeout: 5000 });
-```
-
-## CI/CD 集成
+## 🚀 CI/CD 集成
 
 ### GitHub Actions 示例
 
@@ -302,49 +306,58 @@ jobs:
           node-version: 18
       
       - name: Install dependencies
-        run: npm ci
-        
+        run: pnpm install
+      
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-        
+        run: pnpm exec playwright install --with-deps
+      
+      - name: Setup database
+        run: |
+          pnpm --filter @skillhub/web run db:push
+          pnpm --filter @skillhub/web run seed:v3
+      
       - name: Run tests
-        run: npx playwright test
-        
+        run: pnpm exec playwright test
+        # webServer 自动启 pnpm dev，无需手动起服务
+      
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: playwright-report
-          path: playwright-report/
+          path: apps/web/playwright-report/
 ```
 
-## 最佳实践
+---
 
-1. **使用相对 URL**：使用 `/login` 而不是 `http://localhost:3000/login`
-2. **避免硬编码等待**：使用 `waitForSelector` 而不是 `waitForTimeout`
-3. **独立的测试**：每个测试应该独立，不依赖其他测试
-4. **清理测试数据**：测试后清理创建的数据
-5. **有意义的测试名称**：清楚描述测试的目的
-6. **适当的断言**：验证关键的用户流程
-7. **并行执行**：利用 Playwright 的并行能力加速测试
+## 📝 最佳实践
 
-## 与 Cypress 对比
+1. **优先用 `page.request` 做 API 契约测试**（不需要浏览器 UI 启动开销）
+2. **用相对 URL**：`/login` 而不是 `http://localhost:3000/login`
+3. **避免 `waitForTimeout`**：用 `waitForSelector` 或 `waitForLoadState`
+4. **每个测试独立**：不依赖其他测试的副作用
+5. **清理测试数据**：测试后清理创建的数据（用 `test.afterEach`）
+6. **有意义的测试名称**：清楚描述测试目的
+7. **充分利用 `reuseExistingServer`**：本地调试时手动 `pnpm dev`，E2E 跑得快
 
-| 特性 | Playwright | Cypress |
-|------|-----------|---------|
-| 多浏览器支持 | ✅ Chromium, Firefox, WebKit | ⚠️ 主要是 Chromium |
-| 并行执行 | ✅ 内置支持 | ⚠️ 需要 Dashboard |
-| 自动等待 | ✅ 智能等待 | ✅ 智能等待 |
-| 网络拦截 | ✅ 强大 | ✅ 良好 |
-| 移动端测试 | ✅ 设备模拟 | ❌ 不支持 |
-| 学习曲线 | 中等 | 较低 |
-| 社区 | 快速增长 | 成熟 |
+---
 
-本项目同时使用 Cypress 和 Playwright：
-- **Cypress**: `cypress/e2e/` - 主要的 E2E 测试
-- **Playwright**: `tests/` - 补充测试和跨浏览器测试
+## 📊 与 Cypress 的分工
 
-## 资源
+| 工具 | 目录 | 用途 |
+|---|---|---|
+| **Playwright** | `apps/web/tests/` | 跨浏览器、API 契约测试、SVG/截图 |
+| **Cypress** | `apps/web/cypress/e2e/` | 完整 UI 流测试 |
+
+两个工具并行使用，按场景选：
+
+- **快 API 测试** → Playwright
+- **跨浏览器兼容性** → Playwright
+- **完整 UI 流程** → Cypress（更直观）
+
+---
+
+## 📚 资源
 
 - [Playwright 官方文档](https://playwright.dev/)
 - [Playwright API 参考](https://playwright.dev/docs/api/class-playwright)
@@ -353,5 +366,12 @@ jobs:
 
 ---
 
-**最后更新**: 2024-04-23  
-**维护者**: SkillHub Team
+## 🆘 需要帮忙？
+
+如果遇到问题：
+
+1. 先看本文档的"故障排查"小节
+2. 跑 `pnpm exec playwright test --list` 看 config 是否能加载
+3. 手动 `pnpm dev` 看 dev server 能否启动
+4. 看 `playwright-report/` 的 HTML 报告（`pnpm exec playwright show-report`）
+5. 还不行就开 issue 附上报告截图 + `playwright.config.ts`

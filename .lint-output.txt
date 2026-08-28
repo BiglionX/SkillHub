@@ -1,0 +1,93 @@
+﻿
+> skillhub@1.0.0 lint D:\BigLionX\SkillHub
+> eslint .
+
+node.exe : (node:19040) ESLintEnvWarning: /* eslint-env */ comments are no longer recognized when linting with flat con
+fig and will be reported as errors as of v10.0.0. Replace them with /* global */ comments or define globals in your con
+fig file. See https://eslint.org/docs/latest/use/configure/migration-guide#eslint-env-configuration-comments for detail
+s. Found in D:\BigLionX\SkillHub\apps\cli\scripts\dev.js at line 2.
+所在位置 E:\Cache\npm-global\pnpm.ps1:24 字符: 5
++     & "node$exe"  "$basedir/node_modules/pnpm/bin/pnpm.cjs" $args
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:19040) ES...v.js at line 2.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+D:\BigLionX\SkillHub\apps\helper\src\main.tsx
+  6:21  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\helper\src\pages\Settings.tsx
+  89:30  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\web\app\api\a2a\tasks\route.ts
+  87:28  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\web\app\api\v2\__tests__\discovery.test.ts
+   81:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   96:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  138:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  184:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  248:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  284:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\app\skills\[slug]\page.tsx
+  132:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  244:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  251:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  252:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  253:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  260:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  392:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\components\install-fallback-flow.tsx
+  143:55  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\web\components\ui\__tests__\SearchHistory.test.tsx
+  202:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  229:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  242:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  312:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  313:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  319:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\lib\cache\api-cache.ts
+  35:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\lib\intent\__tests__\parse-end-to-end.test.ts
+  57:25  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\web\lib\services\LlmGateway.ts
+  136:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\lib\services\__tests__\llm-gateway.test.ts
+   13:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   60:16  warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  159:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  169:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\prisma\seed-v3-delivery.ts
+  117:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\scripts\check-nextjs15-compat.ts
+  139:5  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\apps\web\tests\install-button.spec.ts
+  167:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\BigLionX\SkillHub\apps\web\tests\oidc-discovery.test.ts
+  102:7  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\packages\skill-test-harness\src\index.ts
+  120:25  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+D:\BigLionX\SkillHub\scripts\crawl-skill-md.ts
+  228:32  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  228:48  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  228:64  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+鉁?40 problems (0 errors, 40 warnings)
+

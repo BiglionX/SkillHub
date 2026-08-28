@@ -223,9 +223,11 @@ async function main() {
 
   // 1. 发现 SKILL.md 仓库
   console.log('\n📡 Step 1: Discovering SKILL.md repositories...');
+  // 上面已经设置过默认值，这里读取为强类型本地变量，避免 non-null assertion
+  const { query, limit, minStars } = options;
   const discovered = options.repo
     ? [await discoverSingleRepo(options.repo)]
-    : await searchSkillMdRepos(options.query!, options.limit!, options.minStars!);
+    : await searchSkillMdRepos(query ?? 'SKILL.md', limit ?? 30, minStars ?? 20);
 
   console.log(`  Found ${discovered.length} candidate(s)`);
 

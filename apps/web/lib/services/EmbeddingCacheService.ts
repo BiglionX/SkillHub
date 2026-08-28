@@ -2,13 +2,13 @@ import { createClient } from 'redis';
 import NodeCache from 'node-cache';
 
 // Upstash Redis 类型定义（延迟加载）
-/* eslint-disable no-unused-vars */
+ 
 type UpstashRedisClient = {
   get: (key: string) => Promise<string | null>;
   set: (key: string, value: string, options?: { ex?: number }) => Promise<void>;
   del: (key: string) => Promise<void>;
 };
-/* eslint-enable no-unused-vars */
+ 
 
 /**
  * Embeddings缓存服务

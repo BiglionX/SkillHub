@@ -78,7 +78,7 @@ export function exportCommand(program: Command) {
               await fs.writeFile(filePath, fileResp.data);
               resourcesCount++;
             }
-          } catch (err) {
+          } catch {
             spinner.warn(
               chalk.yellow(
                 `\nWarning: Failed to download some resources. Files may be incomplete.`,

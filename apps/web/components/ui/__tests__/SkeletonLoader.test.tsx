@@ -2,10 +2,10 @@
  * SkeletonLoader 组件单元测试
  */
 
-import { render, screen } from '@testing-library/react';
-import SkillsSkeleton, { 
-  FilterPanelSkeleton, 
-  SearchBoxSkeleton, 
+import { render } from '@testing-library/react';
+import SkillsSkeleton, {
+  FilterPanelSkeleton,
+  SearchBoxSkeleton,
   HeroSkeleton,
   FullPageSkeleton 
 } from '../SkeletonLoader';

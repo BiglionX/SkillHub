@@ -14,8 +14,7 @@ import { GET as discoveryGET } from '@/app/api/v2/discovery/route';
 import { GET as skillMdGET } from '@/app/api/v2/skills/[slug]/skill.md/route';
 import { GET as filesGET } from '@/app/api/v2/skills/[slug]/files/[...path]/route';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const createMockFn = () => jest.fn<() => Promise<any>>();
+const createMockFn = () => jest.fn<() => Promise<unknown>>();
 // Mock Prisma
 jest.mock('@/lib/prisma', () => ({
   prisma: {
@@ -39,7 +38,7 @@ describe('GET /api/v2/discovery', () => {
   });
 
   it('应返回标准化�?Skills 列表', async () => {
-    (prisma.skill.findMany as any).mockResolvedValue([
+    (prisma.skill.findMany as jest.Mock).mockResolvedValue([
       {
         slug: 'pdf-gen',
         standardName: 'pdf-generation',
@@ -78,7 +77,7 @@ describe('GET /api/v2/discovery', () => {
   });
 
   it('应支�?type 过滤', async () => {
-    (prisma.skill.findMany as any).mockResolvedValue([]);
+    (prisma.skill.findMany as unknown as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest(
       'http://localhost/api/v2/discovery?type=KNOWLEDGE',
@@ -93,7 +92,7 @@ describe('GET /api/v2/discovery', () => {
   });
 
   it('应支�?cursor 翻页', async () => {
-    (prisma.skill.findMany as any).mockResolvedValue([]);
+    (prisma.skill.findMany as unknown as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest(
       'http://localhost/api/v2/discovery?cursor=last-slug&limit=10',
@@ -108,8 +107,7 @@ describe('GET /api/v2/discovery', () => {
   });
 
   it('应限制 limit 最大值', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.skill.findMany as any).mockResolvedValue([]);
+    (prisma.skill.findMany as unknown as jest.Mock).mockResolvedValue([]);
 
     const request = new NextRequest(
       'http://localhost/api/v2/discovery?limit=99999',
@@ -135,7 +133,7 @@ description: Generate PDF from markdown
 
 # PDF Generation`;
 
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       slug: 'pdf-gen',
       skillMdContent,
       standardName: 'pdf-generation',
@@ -159,8 +157,7 @@ description: Generate PDF from markdown
   });
 
   it('无 SKILL.md 时应从 metadata 动态生成', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       slug: 'pdf-gen',
       skillMdContent: null,
       standardName: 'pdf-generation',
@@ -181,7 +178,7 @@ description: Generate PDF from markdown
   });
 
   it('私有 Skill 应返�?404', async () => {
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       slug: 'private-skill',
       isPublic: false,
     });
@@ -197,7 +194,7 @@ description: Generate PDF from markdown
   });
 
   it('不存在的 Skill 应返�?404', async () => {
-    (prisma.skill.findUnique as any).mockResolvedValue(null);
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue(null);
 
     const request = new NextRequest(
       'http://localhost/api/v2/skills/not-exist/skill.md',
@@ -227,8 +224,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   });
 
   it('不存在的资源应返回 404', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
       isPublic: true,
       resources: [],
@@ -245,7 +241,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   });
 
   it('应返回资源元数据', async () => {
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
       isPublic: true,
       resources: [
@@ -281,7 +277,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   });
 
   it('超大文件应返�?413', async () => {
-    (prisma.skill.findUnique as any).mockResolvedValue({
+    (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
       isPublic: true,
       resources: [

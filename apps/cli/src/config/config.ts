@@ -30,7 +30,7 @@ export function getConfig(): Config {
       const userConfig = JSON.parse(configData);
       return { ...DEFAULT_CONFIG, ...userConfig };
     }
-  } catch (error) {
+  } catch {
     console.error('Warning: Failed to read config file, using defaults');
   }
   return DEFAULT_CONFIG;

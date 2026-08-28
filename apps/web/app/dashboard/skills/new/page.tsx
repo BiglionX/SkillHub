@@ -48,7 +48,7 @@ export default function CreateSkillPage() {
 
   // 创建技能
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Record<string, unknown>) => {
       const response = await fetch('/api/skills', {
         method: 'POST',
         headers: {

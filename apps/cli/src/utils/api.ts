@@ -136,8 +136,8 @@ export async function installSkillPackage(
   apiUrl: string,
 ): Promise<InstallResult> {
   try {
-    // Download skill package
-    const response = await axios.get(`${apiUrl}/api/skills/${skillName}/download`, {
+    // Download skill package metadata (response not used directly; we only need the side effect)
+    await axios.get(`${apiUrl}/api/skills/${skillName}/download`, {
       params: { version },
       responseType: 'arraybuffer',
     });

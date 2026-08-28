@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "SkillHub Helper",
+  "version": "1.0.0",
+  "identifier": "cc.proclaw.skillhub.helper",
+  "build": {
+    "beforeDevCommand": "pnpm vite",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm vite build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SkillHub Helper",
+        "width": 880,
+        "height": 640,
+        "minWidth": 720,
+        "minHeight": 520,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "tooltip": "SkillHub Helper"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "SkillHub 本地安装助手",
+    "longDescription": "SkillHub 桌面助手：注册 skillhub:// 协议、扫描本机软件、执行安装剧本、转发 LLM 调用。",
+    "windows": {
+      "wix": {
+        "language": "zh-CN"
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {}
+}

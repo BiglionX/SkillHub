@@ -97,6 +97,11 @@ model Skill {
   locale           String          @default("zh-CN")
   executionConfig  Json? // Flowise 集成配置：存储 API 端点、Docker 镜像或执行参数
 
+  // === v3 M1 新增：交付物类型（决定详情页用哪种 Deliverable 渲染）===
+  deliveryCategory  SkillDeliveryCategory? // A / B / C，不填则视为 A（兼容老数据）
+  // C 类 Skill 的 LLM 配置（M2 后用 JSON Schema 校验）
+  llmConfig         Json?                  // { model, system_prompt, input_schema, output_schema, ... }
+
   // === v3.0 新增：Agent Skills 开放标准兼容（https://agentskills.io）===
   // 注意：以下字段通过 @map 映射到 20260624_add_agent_skills_standard_support 迁移
   // 创建的下划线命名列（skill_md_content 等），与迁移 SQL 保持一致。
@@ -118,11 +123,14 @@ model Skill {
   parentPacks      SkillPackItem[] @relation("SkillPackChild")
   resources        SkillResource[] // 关联的 scripts/references/assets 资源
   translations     SkillTranslation[] // 多语言翻译
+  intentTags       SkillIntentTag[]
+  softwareTags     SkillSoftwareTag[]
   author           User            @relation(fields: [authorId], references: [id])
   namespace        Namespace?      @relation(fields: [namespaceId], references: [id])
 
   @@index([slug])
   @@index([category])
+  @@index([deliveryCategory])
   @@index([status])
   @@index([source])
   @@index([sourceId])
@@ -544,6 +552,79 @@ model playing_with_neon {
   value Float? @db.Real
 }
 
+/// v3 M1 新增：技能交付物类型（决定 Skill 详情页用哪种 Deliverable 渲染）
+enum SkillDeliveryCategory {
+  ENVIRONMENT_DEPENDENT  // A 类：环境依赖型（PS/VSCode 插件）
+  OAUTH_AUTHORIZED        // B 类：数据授权型（飞书/Notion 同步）
+  CONTENT_GENERATION      // C 类：内容生成型（写文案/做 PPT/纪要）
+}
+
+/// v3 M1 新增：意图标签（LLM 解析出的功能意图）
+model IntentTag {
+  id        String   @id @default(cuid())
+  name      String   @unique          // "image-retouch" | "content-write" | ...
+  labelZh   String                    // "图片精修" | "内容写作"
+  category  SkillDeliveryCategory?    // 推荐类别
+  skills    SkillIntentTag[]
+  createdAt DateTime @default(now())
+
+  @@index([category])
+  @@map("intent_tags")
+}
+
+/// v3 M1 新增：软件标签（PS / VSCode / Blender / Excel / Feishu / Notion / ...）
+model SoftwareTag {
+  id        String   @id @default(cuid())
+  name      String   @unique          // "photoshop" | "vscode" | ...
+  labelZh   String                    // "Photoshop" | "VS Code"
+  icon      String?                   // emoji 或 URL
+  skills    SkillSoftwareTag[]
+  createdAt DateTime @default(now())
+
+  @@map("software_tags")
+}
+
+/// Skill ↔ IntentTag 多对多
+model SkillIntentTag {
+  skillId     String
+  intentTagId  String
+  skill        Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  intentTag    IntentTag @relation(fields: [intentTagId], references: [id], onDelete: Cascade)
+  weight       Int       @default(1)  // 该标签在匹配时的权重
+
+  @@id([skillId, intentTagId])
+  @@index([intentTagId])
+  @@map("skill_intent_tags")
+}
+
+/// Skill ↔ SoftwareTag 多对多
+model SkillSoftwareTag {
+  skillId       String
+  softwareTagId String
+  skill         Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  softwareTag   SoftwareTag @relation(fields: [softwareTagId], references: [id], onDelete: Cascade)
+
+  @@id([skillId, softwareTagId])
+  @@index([softwareTagId])
+  @@map("skill_software_tags")
+}
+
+/// v3 M1 新增：用户已装软件清单（Web 端多选框 / 助手自动扫描通用）
+model UserInstalledSoftware {
+  id          String   @id @default(cuid())
+  userId      String
+  softwareTagId String
+  source      String                  // "WEB_CHECKBOX" | "HELPER_SCAN"
+  version     String?
+  helperPort  Int?                    // 助手本机 HTTP 端口（用于 LLM 转发发现）
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, softwareTagId])
+  @@index([userId])
+  @@map("user_installed_software")
+}
+
 enum SkillStatus {
   DRAFT
   PENDING_REVIEW
@@ -551,6 +632,94 @@ enum SkillStatus {
   APPROVED
   REJECTED
   ARCHIVED
+}
+
+/// v3 M2：安装任务状态
+enum InstallStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+/// v3 M2：剧本来源
+enum PlaybookSource {
+  BUILTIN
+  PUBLISHER
+}
+
+/// v3 M2：安装任务
+model InstallJob {
+  id              String         @id @default(cuid())
+  userId          String?
+  slug            String
+  version         String
+  playbookId      String
+  playbookSource  PlaybookSource
+  status          InstallStatus  @default(PENDING)
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  totalDurationMs Int?
+  errorCode       String?
+  errorMessage    String?
+  createdAt       DateTime       @default(now())
+  events          InstallEvent[]
+
+  @@index([userId, slug])
+  @@index([status, createdAt])
+  @@index([slug])
+  @@map("install_jobs")
+}
+
+/// v3 M2：安装任务事件
+model InstallEvent {
+  id         String     @id @default(cuid())
+  jobId      String
+  job        InstallJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stepId     String?
+  stepType   String?
+  eventType  String
+  payload    Json?
+  occurredAt DateTime   @default(now())
+
+  @@index([jobId, occurredAt])
+  @@index([eventType])
+  @@map("install_events")
+}
+
+/// v3 M2：剧本定义（内置白名单 + 发布者声明）
+model PlaybookDefinition {
+  id        String         @id
+  software  String
+  version   String
+  source    PlaybookSource
+  skillSlug String?
+  yaml      String         @db.Text
+  schemaHash String
+  status    String         @default("ACTIVE")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([software, version])
+  @@index([skillSlug])
+  @@map("playbook_definitions")
+}
+
+/// v3 M2：用户软件路径库（手动补位 + 助手扫描共用）
+model UserSoftwarePath {
+  id          String   @id @default(cuid())
+  userId      String
+  software    String
+  pathHash    String
+  pathCipher  String   @db.Text
+  version     String?
+  isManual    Boolean  @default(false)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, software])
+  @@map("user_software_paths")
 }
 
 enum NamespaceType {

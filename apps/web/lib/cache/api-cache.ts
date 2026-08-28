@@ -32,7 +32,7 @@ export interface UnstableCacheOptions {
  * @param keyParts - 缓存键组成部分
  * @param options - 缓存选项
  */
-export function cachedFetch<T extends (...args: any[]) => Promise<unknown>>(
+export function cachedFetch<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   keyParts: string[],
   options: UnstableCacheOptions = {},

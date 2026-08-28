@@ -40,7 +40,7 @@ export default function NotificationSettingsPage() {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       setMessage({ type: 'success', text: '通知设置已保存！' });
-    } catch (error) {
+    } catch {
       setMessage({
         type: 'error',
         text: '保存失败，请重试',

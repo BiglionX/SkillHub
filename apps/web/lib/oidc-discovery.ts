@@ -214,7 +214,7 @@ export async function warmDiscoveryCache(): Promise<void> {
   try {
     await getDiscovery();
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       '[OIDC] Discovery warm-up failed (will retry on first login):',
       err instanceof Error ? err.message : err,

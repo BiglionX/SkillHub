@@ -36,7 +36,7 @@ export default function ApiKeysSettingsPage() {
       if (!response.ok) throw new Error('加载失败');
       const data = await response.json();
       setApiKeys(data.data || []);
-    } catch (error) {
+    } catch {
       toast.error('加载 API 密钥失败');
     } finally {
       setIsLoading(false);
@@ -94,10 +94,10 @@ export default function ApiKeysSettingsPage() {
       });
 
       if (!response.ok) throw new Error('删除失败');
-      
+
       await loadApiKeys();
       toast.success('API 密钥已删除');
-    } catch (error) {
+    } catch {
       toast.error('删除失败');
     }
   };

@@ -85,9 +85,9 @@ describe('oidc-discovery', () => {
     });
 
     test('并发请求应合并（in-flight 共享 Promise）', async () => {
-      let resolveFn: (v: unknown) => void;
-      const pending = new Promise((r) => {
-        resolveFn = r;
+      const resolver: { current: ((v: unknown) => void) | null } = { current: null };
+      const pending = new Promise<unknown>((r) => {
+        resolver.current = r;
       });
       mockFetch.mockReturnValueOnce(pending as unknown as Promise<Response>);
 
@@ -99,10 +99,12 @@ describe('oidc-discovery', () => {
       expect(mockFetch.mock.calls.length).toBe(1);
 
       // 触发 discovery 响应
-      resolveFn!({
-        ok: true,
-        json: async () => VALID_DISCOVERY,
-      });
+      if (resolver.current) {
+        resolver.current({
+          ok: true,
+          json: async () => VALID_DISCOVERY,
+        });
+      }
 
       const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
       expect(r1).toBe(r2);

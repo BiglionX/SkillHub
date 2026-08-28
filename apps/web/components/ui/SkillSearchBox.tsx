@@ -5,7 +5,7 @@ import { searchSkills, getSearchSuggestions } from '@/lib/search-service';
 import type { SkillSearchResult } from '@skillhub/search-sdk';
 
 interface SkillSearchBoxProps {
-  // eslint-disable-next-line no-unused-vars
+   
   onSearchComplete?: (skills: SkillSearchResult[]) => void;
   placeholder?: string;
   className?: string;

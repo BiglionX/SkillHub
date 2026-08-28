@@ -2,51 +2,26 @@
   "name": "@skillhub/search-sdk",
   "version": "1.0.0",
   "description": "SkillHub搜索引擎SDK - 为您的应用集成强大的AI技能搜索功能",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
+    "build": "tsc && tsc -p tsconfig.esm.json",
+    "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run lint && npm run build",
-    "preversion": "npm run lint"
-  },
-  "keywords": [
-    "skillhub",
-    "search",
-    "semantic-search",
-    "ai-skills",
-    "agent-skills"
-  ],
-  "author": "SkillHub Team",
-  "license": "MIT",
-  "dependencies": {
-    "axios": "^1.6.0"
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "tsup": "^8.0.0",
-    "@types/node": "^20.0.0"
-  },
-  "peerDependencies": {
-    "typescript": ">=5.0.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/skillhub/skillhub.git",
-    "directory": "packages/search-sdk"
-  },
-  "homepage": "https://github.com/skillhub/skillhub/tree/main/packages/search-sdk#readme",
-  "bugs": {
-    "url": "https://github.com/skillhub/skillhub/issues"
+    "typescript": "^5.0.0"
   }
 }

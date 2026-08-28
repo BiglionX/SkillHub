@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { AuditLog } from '@/types';
 
 export default function AuditLogsPage() {
   const { data: logsData, isLoading } = useQuery({
@@ -12,7 +13,7 @@ export default function AuditLogsPage() {
     },
   });
 
-  const logs = logsData?.data || [];
+  const logs: AuditLog[] = logsData?.data || [];
 
   if (isLoading) {
     return (
@@ -46,7 +47,7 @@ export default function AuditLogsPage() {
           ) : (
             <div className="flow-root">
               <ul className="-mb-8">
-                {logs.map((log: any, idx: number) => (
+                {logs.map((log, idx) => (
                   <li key={log.id}>
                     <div className="relative pb-8">
                       {idx !== logs.length - 1 ? (

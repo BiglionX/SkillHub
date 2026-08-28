@@ -1,0 +1,57 @@
+# Excel 自动化加载项剧本（M2 内置白名单 #4）
+# 通过 registry 注册 .xll 或 Office 加载项
+
+id: excel-automation@v1
+software: excel
+description: 安装 Excel 自动化加载项
+preflight:
+  - detect: software
+  - ensure-disk-space: 50MB
+
+steps:
+  - id: download
+    type: http
+    description: 下载加载项包
+    url: ${skill.download_url}
+    sha256: ${skill.checksum}
+    to: ${temp_dir}/addin.zip
+
+  - id: extract
+    type: extract
+    archive: ${temp_dir}/addin.zip
+    to: ${temp_dir}/addin
+
+  - id: copy-addin
+    type: copy
+    description: 复制到 Office 加载项目录
+    from: ${temp_dir}/addin/${skill.entry}
+    to: ${software.path}/addin/${skill.name}.xlam
+
+  - id: register
+    type: command
+    description: 通过注册表注册加载项（仅 Windows）
+    cmd:
+        windows: reg.exe
+    args:
+      - add
+      - HKCU\\SOFTWARE\\Microsoft\\Office\\${software.version}\\Excel\\Options
+      - /v
+      - OPEN
+      - /t
+      - REG_SZ
+      - /d
+      - /R ${software.path}/addin/${skill.name}.xlam
+      - /f
+
+  - id: verify
+    type: file-exists
+    path: ${software.path}/addin/${skill.name}.xlam
+
+success:
+  message: "安装成功！重启 Excel 后，「加载项」菜单中会出现「${skill.name}」。"
+  cta:
+    label: "打开 Excel"
+    action: open-path:${software.path}
+
+failure:
+  rollback: true

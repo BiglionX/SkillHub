@@ -3,7 +3,7 @@ import type { LocalSkill } from '../types';
 
 interface UseMySkillsOptions {
   onSkillUpdate?: () => void;
-  // eslint-disable-next-line no-unused-vars
+   
   onSkillPublish?: (skillId: string) => void;
 }
 

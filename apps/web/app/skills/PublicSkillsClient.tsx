@@ -11,6 +11,10 @@ import SearchHistory from '@/components/ui/SearchHistory';
 import GlobalSearchLoadingIndicator from '@/components/ui/GlobalSearchLoadingIndicator';
 import PromoCards from '@/components/ui/PromoCards';
 import DSHBanner from '@/components/ui/DSHBanner';
+import ChatIntentInput from '@/components/chat-intent-input'; // v3 M1: 智能问答入口
+import OnboardingHelperPrompt from '@/components/onboarding-helper-prompt'; // v3 M1: Onboarding 引导
+import SoftwareIconBar from '@/components/software-icon-bar'; // v3 M1: 软件过滤栏
+import SoftwarePickerDialog from '@/components/software-picker-dialog'; // v3 M1: 已装软件多选
 
 interface SearchParams {
   q?: string;
@@ -28,6 +32,7 @@ interface SearchParams {
   page?: string;
   semantic?: string;
   global?: string;
+  software?: string; // v3 M1：按软件过滤
 }
 
 interface SkillWithRelations {
@@ -82,6 +87,7 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
   const [loading, setLoading] = useState(true);
 
   const query = searchParams.q;
+  const software = searchParams.software; // v3 M1
   const category = searchParams.category;
   const subcategory = searchParams.subcategory;
   const language = searchParams.language;
@@ -370,6 +376,16 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
 
       {/* DSH 开源融合广告横幅 */}
       <DSHBanner />
+
+      {/* v3 M1：软件过滤栏（顶部图标，点击过滤 Skill） */}
+      <SoftwareIconBar activeSoftwareName={software} />
+
+      {/* v3 M1：智能问答入口（占屏 60% 大对话框，PRD §2.4 统一推荐逻辑） */}
+      <ChatIntentInput />
+
+      {/* v3 M1：Onboarding 引导（首次访问用户看到） */}
+      <OnboardingHelperPrompt />
+      <SoftwarePickerDialog />
 
       {/* 快速标签栏 */}
       {categories.length > 1 && (

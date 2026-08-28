@@ -12,7 +12,7 @@ import { NextRequest } from 'next/server';
 import { GET, POST } from '../search/route';
 
 // Access global Prisma mock
-const prismaMock = (global as any).__mockPrisma;
+const prismaMock = global.__mockPrisma;
 
 describe('Search API', () => {
   beforeEach(() => {

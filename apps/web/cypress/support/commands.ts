@@ -46,7 +46,7 @@ Cypress.Commands.add('createSkill', (skillData: {
 
 // 声明自定义命令的类型
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
+   
   namespace Cypress {
     interface Chainable {
       login(email: string, password: string): Chainable<void>;

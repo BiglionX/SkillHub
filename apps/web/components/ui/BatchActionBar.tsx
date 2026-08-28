@@ -3,14 +3,14 @@
 import React from 'react';
 import { Check, Archive, Trash2, FileText, X } from 'lucide-react';
 
-/* eslint-disable no-unused-vars */
+ 
 interface BatchActionBarProps {
   selectedCount: number;
   onAction: (action: 'publish' | 'archive' | 'draft' | 'delete') => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
-/* eslint-enable no-unused-vars */
+ 
 
 /**
  * 批量操作工具栏组件

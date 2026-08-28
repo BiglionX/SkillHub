@@ -1,0 +1,108 @@
+# 扫描规则：scanner.rs 读取这份配置，按 OS 扫描本机软件
+# 匹配到的 SoftwareTag.id → 写到 helper 的内存映射
+
+photoshop:
+  display_name: "Adobe Photoshop"
+  software_tag: "photoshop"
+  windows:
+    uninstall_keys:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*"
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Adobe\\Photoshop"
+    common_paths:
+      - "C:\\Program Files\\Adobe\\Adobe Photoshop*"
+      - "C:\\Program Files (x86)\\Adobe\\Adobe Photoshop*"
+  macos:
+    bundle_ids:
+      - "com.adobe.Photoshop"
+    common_paths:
+      - "/Applications/Adobe Photoshop*"
+
+vscode:
+  display_name: "Visual Studio Code"
+  software_tag: "vscode"
+  windows:
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{*}_is1"
+    common_paths:
+      - "%LOCALAPPDATA%\\Programs\\Microsoft VS Code"
+      - "C:\\Program Files\\Microsoft VS Code"
+  macos:
+    bundle_ids:
+      - "com.microsoft.VSCode"
+    common_paths:
+      - "/Applications/Visual Studio Code.app"
+
+blender:
+  display_name: "Blender"
+  software_tag: "blender"
+  windows:
+    common_paths:
+      - "C:\\Program Files\\Blender Foundation\\Blender*"
+      - "%LOCALAPPDATA%\\Programs\\Blender*"
+  macos:
+    bundle_ids:
+      - "org.blenderfoundation.blender"
+    common_paths:
+      - "/Applications/Blender.app"
+
+excel:
+  display_name: "Microsoft Excel"
+  software_tag: "excel"
+  windows:
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\EXCEL.EXE"
+    common_paths:
+      - "C:\\Program Files\\Microsoft Office\\root\\Office*"
+      - "C:\\Program Files (x86)\\Microsoft Office\\root\\Office*"
+  macos:
+    bundle_ids:
+      - "com.microsoft.Excel"
+
+powerpoint:
+  display_name: "Microsoft PowerPoint"
+  software_tag: "powerpoint"
+  windows:
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\POWERPNT.EXE"
+    common_paths:
+      - "C:\\Program Files\\Microsoft Office\\root\\Office*"
+  macos:
+    bundle_ids:
+      - "com.microsoft.Powerpoint"
+
+figma:
+  display_name: "Figma"
+  software_tag: "figma"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Figma\\Figma.exe"
+  macos:
+    bundle_ids:
+      - "com.figma.Desktop"
+    common_paths:
+      - "/Applications/Figma.app"
+
+feishu:
+  display_name: "飞书"
+  software_tag: "feishu"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Feishu\\Feishu.exe"
+  macos:
+    bundle_ids:
+      - "com.bytedance.feishu"
+    common_paths:
+      - "/Applications/飞书.app"
+
+notion:
+  display_name: "Notion"
+  software_tag: "notion"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Programs\\Notion\\Notion.exe"
+  macos:
+    bundle_ids:
+      - "notion.id"
+    common_paths:
+      - "/Applications/Notion.app"

@@ -1,6 +1,30 @@
 import { prisma } from '@/lib/prisma';
 
 /**
+ * SQL 查询返回的技能行（来自 $queryRawUnsafe）
+ */
+export interface SkillRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  version: string;
+  category: string;
+  subcategory: string | null;
+  tags: string[];
+  languages: string[];
+  qualityScore: number | null;
+  starCount: number | null;
+  downloadCount: number | null;
+  authorName: string | null;
+  repositoryUrl: string | null;
+  documentationUrl: string | null;
+  source: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
  * 搜索选项
  */
 export interface SearchOptions {
@@ -19,7 +43,7 @@ export interface SearchOptions {
  * 搜索结果
  */
 export interface SearchResult {
-  skills: any[];
+  skills: SkillRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -59,7 +83,7 @@ export class SearchService {
 
     // 构建 WHERE 条件
     const whereConditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | string[])[] = [];
     let paramIndex = 1;
 
     // 全文搜索条件
@@ -159,8 +183,8 @@ export class SearchService {
       ${whereClause}
     `;
     
-    const countResult = await prisma.$queryRawUnsafe(countQuery, ...params);
-    const total = Number((countResult as any)[0].total);
+    const countResult = await prisma.$queryRawUnsafe<Array<{ total: bigint | number }>>(countQuery, ...params);
+    const total = Number((countResult as Array<{ total: bigint | number }>)[0].total);
 
     // 分页查询
     const offset = (page - 1) * pageSize;
@@ -176,15 +200,15 @@ export class SearchService {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     
-    const skills = await prisma.$queryRawUnsafe(
-      dataQuery, 
-      ...params, 
-      pageSize, 
+    const skills = await prisma.$queryRawUnsafe<SkillRow[]>(
+      dataQuery,
+      ...params,
+      pageSize,
       offset
     );
 
     return {
-      skills: skills as any[],
+      skills,
       total,
       page,
       pageSize,
@@ -212,7 +236,7 @@ export class SearchService {
         LIMIT ${limit}
       `;
       
-      (skillNames as any[]).forEach(row => {
+      (skillNames as Array<{ name: string }>).forEach(row => {
         suggestions.push({
           text: row.name,
           type: 'skill',
@@ -228,7 +252,7 @@ export class SearchService {
           LIMIT ${limit - suggestions.length}
         `;
         
-        (categories as any[]).forEach(row => {
+        (categories as Array<{ category: string }>).forEach(row => {
           suggestions.push({
             text: row.category,
             type: 'category',
@@ -245,7 +269,7 @@ export class SearchService {
           LIMIT ${limit - suggestions.length}
         `;
         
-        (tags as any[]).forEach(row => {
+        (tags as Array<{ tag: string }>).forEach(row => {
           suggestions.push({
             text: row.tag,
             type: 'tag',
@@ -325,7 +349,7 @@ export class SearchService {
     } = filters;
 
     const whereConditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | Date | string[])[] = [];
     let paramIndex = 1;
 
     // 全文搜索
@@ -391,8 +415,8 @@ export class SearchService {
 
     // 计算总数
     const countQuery = `SELECT COUNT(*) as total FROM skills ${whereClause}`;
-    const countResult = await prisma.$queryRawUnsafe(countQuery, ...params);
-    const total = Number((countResult as any)[0].total);
+    const countResult = await prisma.$queryRawUnsafe<Array<{ total: bigint | number }>>(countQuery, ...params);
+    const total = Number((countResult as Array<{ total: bigint | number }>)[0].total);
 
     // 分页查询
     const offset = (page - 1) * pageSize;
@@ -407,15 +431,15 @@ export class SearchService {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     
-    const skills = await prisma.$queryRawUnsafe(
-      dataQuery, 
-      ...params, 
-      pageSize, 
+    const skills = await prisma.$queryRawUnsafe<SkillRow[]>(
+      dataQuery,
+      ...params,
+      pageSize,
       offset
     );
 
     return {
-      skills: skills as any[],
+      skills,
       total,
       page,
       pageSize,

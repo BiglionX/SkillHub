@@ -2,7 +2,7 @@
  * SearchHistory 组件单元测试
  */
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import SearchHistory from '../SearchHistory';
 
 // Mock next/navigation
@@ -196,23 +196,23 @@ describe('SearchHistory', () => {
   it('应该去重相同的搜索词', () => {
     // 清空localStorage
     localStorageMock.getItem.mockReturnValue(null);
-    
+
     render(<SearchHistory />);
-    
-    const addToHistory = (window as any).__searchHistoryAPI?.addToHistory;
-    
+
+    const addToHistory = window.__searchHistoryAPI?.addToHistory;
+
     if (addToHistory) {
       addToHistory('test');
       addToHistory('test');
-      
+
       // 检查最后一次setItem调用
       const setItemCalls = localStorageMock.setItem.mock.calls;
       expect(setItemCalls.length).toBeGreaterThan(0);
-      
+
       const lastCall = setItemCalls[setItemCalls.length - 1];
-      const stored = lastCall[1];
-      const parsed = JSON.parse(stored);
-      
+      const stored = lastCall[1] as string;
+      const parsed = JSON.parse(stored) as Array<{ query: string }>;
+
       expect(parsed.length).toBe(1);
       expect(parsed[0].query).toBe('test');
     }
@@ -226,11 +226,11 @@ describe('SearchHistory', () => {
 
     render(<SearchHistory />);
 
-    const addToHistory = (window as any).__searchHistoryAPI?.addToHistory;
-    
+    const addToHistory = window.__searchHistoryAPI?.addToHistory;
+
     if (addToHistory) {
       addToHistory('test');
-      
+
       // 应该调用setItem更新
       expect(localStorageMock.setItem).toHaveBeenCalled();
     }
@@ -239,12 +239,12 @@ describe('SearchHistory', () => {
   it('应该忽略空搜索词', () => {
     render(<SearchHistory />);
 
-    const addToHistory = (window as any).__searchHistoryAPI?.addToHistory;
-    
+    const addToHistory = window.__searchHistoryAPI?.addToHistory;
+
     if (addToHistory) {
       addToHistory('');
       addToHistory('   ');
-      
+
       expect(localStorageMock.setItem).not.toHaveBeenCalled();
     }
   });
@@ -309,14 +309,14 @@ describe('SearchHistory', () => {
   it('暴露的API应该有addToHistory方法', () => {
     render(<SearchHistory />);
 
-    expect((window as any).__searchHistoryAPI).toBeDefined();
-    expect((window as any).__searchHistoryAPI.addToHistory).toBeDefined();
+    expect(window.__searchHistoryAPI).toBeDefined();
+    expect(window.__searchHistoryAPI?.addToHistory).toBeDefined();
   });
 
   it('暴露的API应该有clearHistory方法', () => {
     render(<SearchHistory />);
 
-    expect((window as any).__searchHistoryAPI).toBeDefined();
-    expect((window as any).__searchHistoryAPI.clearHistory).toBeDefined();
+    expect(window.__searchHistoryAPI).toBeDefined();
+    expect(window.__searchHistoryAPI?.clearHistory).toBeDefined();
   });
 });

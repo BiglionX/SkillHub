@@ -1,0 +1,237 @@
+//! scanner.rs — 跨平台软件扫描器
+//!
+//! 读取 `resources/scanner-rules.yml`，按 OS 扫描本机已装软件。
+//! 扫描结果返回给 Web 端展示（用户确认 + 手动补位）。
+
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
+
+#[cfg(target_os = "windows")]
+use winreg::enums::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannedSoftware {
+    pub software_tag: String,
+    pub display_name: String,
+    pub path: String,
+    pub version: Option<String>,
+    pub source: ScanSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanSource {
+    Registry,    // Windows 注册表
+    BundleId,    // Mac bundle ID
+    CommonPath,  // 常见路径扫描
+    Manual,      // 用户手动指定
+}
+
+#[derive(Debug, Deserialize)]
+struct ScannerRules {
+    #[serde(flatten)]
+    software: std::collections::HashMap<String, SoftwareRule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SoftwareRule {
+    display_name: String,
+    software_tag: String,
+    #[serde(default)]
+    windows: Option<OsRules>,
+    #[serde(default)]
+    #[serde(rename = "macos")]
+    macos: Option<OsRules>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OsRules {
+    #[serde(default)]
+    uninstall_keys: Vec<String>,
+    #[serde(default)]
+    registry_paths: Vec<String>,
+    #[serde(default)]
+    common_paths: Vec<String>,
+    #[serde(default)]
+    bundle_ids: Vec<String>,
+}
+
+/// 扫描本机所有已知软件
+pub async fn scan_all() -> Vec<ScannedSoftware> {
+    let rules_yaml = include_str!("../../resources/scanner-rules.yml");
+    let rules: ScannerRules = serde_yaml::from_str(rules_yaml).unwrap_or_else(|e| {
+        log::warn!("scanner-rules.yml 解析失败: {}", e);
+        ScannerRules { software: Default::default() }
+    });
+
+    let mut results = Vec::new();
+    for (key, rule) in rules.software {
+        if let Some(sw) = scan_one(&key, &rule).await {
+            results.push(sw);
+        }
+    }
+    results
+}
+
+async fn scan_one(_key: &str, rule: &SoftwareRule) -> Option<ScannedSoftware> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(win) = &rule.windows {
+            if let Some(found) = scan_windows(win) {
+                return Some(ScannedSoftware {
+                    software_tag: rule.software_tag.clone(),
+                    display_name: rule.display_name.clone(),
+                    path: found,
+                    version: None,
+                    source: ScanSource::Registry,
+                });
+            }
+            if let Some(found) = scan_common_paths(&win.common_paths) {
+                return Some(ScannedSoftware {
+                    software_tag: rule.software_tag.clone(),
+                    display_name: rule.display_name.clone(),
+                    path: found,
+                    version: None,
+                    source: ScanSource::CommonPath,
+                });
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(mac) = &rule.macos {
+            if let Some(found) = scan_macos(mac) {
+                return Some(ScannedSoftware {
+                    software_tag: rule.software_tag.clone(),
+                    display_name: rule.display_name.clone(),
+                    path: found,
+                    version: None,
+                    source: ScanSource::BundleId,
+                });
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn scan_windows(rules: &OsRules) -> Option<String> {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+
+    // 1. 扫注册表 Uninstall 列表
+    if !rules.uninstall_keys.is_empty() {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(uninstall) = hklm.open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall") {
+            for key in uninstall.enum_keys().flatten() {
+                if let Ok(sub) = uninstall.open_subkey(&key) {
+                    if let Ok(name) = sub.get_value::<String, _>("DisplayName") {
+                        // 简单匹配（生产环境应该匹配 vendor + name）
+                        let lower = name.to_lowercase();
+                        if lower.contains("photoshop") && rules.common_paths.iter().any(|p| p.contains("photoshop")) {
+                            if let Ok(install_location) = sub.get_value::<String, _>("InstallLocation") {
+                                if !install_location.is_empty() && Path::new(&install_location).exists() {
+                                    return Some(install_location);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn scan_macos(rules: &OsRules) -> Option<String> {
+    // 1. 通过 mdfind 查 bundle ID
+    for bundle_id in &rules.bundle_ids {
+        let output = Command::new("mdfind")
+            .args(["kMDItemCFBundleIdentifier", bundle_id])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !path.is_empty() && Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+
+    // 2. 常见路径兜底
+    scan_common_paths(&rules.common_paths)
+}
+
+fn scan_common_paths(patterns: &[String]) -> Option<String> {
+    use glob::glob;
+    for pattern in patterns {
+        // 展开环境变量
+        let expanded = expand_env(pattern);
+        if let Ok(entries) = glob(&expanded) {
+            for entry in entries.flatten() {
+                if entry.is_dir() || entry.is_file() {
+                    return Some(entry.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn expand_env(s: &str) -> String {
+    let mut result = s.to_string();
+    if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+        result = result.replace("%LOCALAPPDATA%", &local_app);
+    }
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        result = result.replace("%APPDATA%", &app_data);
+    }
+    if let Ok(program_files) = std::env::var("ProgramFiles") {
+        result = result.replace("%ProgramFiles%", &program_files);
+    }
+    result
+}
+
+/// 用户手动指定软件路径（覆盖扫描结果）
+pub fn manual_override(software_tag: &str, path: &str) -> ScannedSoftware {
+    ScannedSoftware {
+        software_tag: software_tag.to_string(),
+        display_name: software_tag.to_string(),
+        path: path.to_string(),
+        version: None,
+        source: ScanSource::Manual,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_env() {
+        std::env::set_var("TEST_LOCALAPPDATA", "C:\\Users\\Test\\AppData\\Local");
+        let r = expand_env("%TEST_LOCALAPPDATA%\\foo");
+        // 没匹配上（因为只替换白名单几个）
+        assert_eq!(r, "%TEST_LOCALAPPDATA%\\foo");
+
+        let r2 = expand_env("%LOCALAPPDATA%\\foo");
+        // 取决于实际环境变量
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            assert_eq!(r2, format!("{}\\foo", local));
+        }
+    }
+
+    #[test]
+    fn test_manual_override() {
+        let sw = manual_override("photoshop", "C:\\PS\\");
+        assert_eq!(sw.software_tag, "photoshop");
+        assert_eq!(sw.path, "C:\\PS\\");
+        assert_eq!(sw.source, ScanSource::Manual);
+    }
+}

@@ -321,7 +321,7 @@ export class SkillSeekersAdapter {
         readme: matter.content,
         rawContent: content,
       };
-    } catch (error) {
+    } catch {
       // 如果 main 分支失败，尝试 master 分支
       try {
         const response = await axios.get(
@@ -351,7 +351,7 @@ export class SkillSeekersAdapter {
           readme: matter.content,
           rawContent: content,
         };
-      } catch (secondError) {
+      } catch {
         // SKILL.md 不存在或无法访问
         console.warn(`No valid SKILL.md found in ${owner}/${repo} via API`);
         return null;

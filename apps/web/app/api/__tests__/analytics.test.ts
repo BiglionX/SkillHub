@@ -10,7 +10,7 @@ import { NextRequest } from 'next/server';
 import { GET } from '../analytics/overview/route';
 
 // Access global Prisma mock
-const prismaMock = (global as any).__mockPrisma;
+const prismaMock = global.__mockPrisma;
 
 describe('Analytics API - GET /api/analytics/overview', () => {
   beforeEach(() => {
@@ -134,7 +134,7 @@ describe('Analytics API - GET /api/analytics/overview', () => {
 
     const request = new NextRequest('http://localhost:3000/api/analytics/overview');
     const response = await GET(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(500);
   });

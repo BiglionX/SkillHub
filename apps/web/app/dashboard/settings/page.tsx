@@ -108,7 +108,7 @@ export default function ProfileSettingsPage() {
         throw new Error(errorData.error || '更新失败');
       }
 
-      const result = await response.json();
+      await response.json();
 
       // 更新 session
       await update({

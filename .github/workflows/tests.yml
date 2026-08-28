@@ -34,6 +34,10 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @skillhub/web run db:generate
 
+      # v2.1：早拦截 playwright 配置漂移（防止 webServer 被注释掉导致 ECONNREFUSED）
+      - name: Verify Playwright config
+        run: pnpm --filter @skillhub/web run test:e2e:check
+
       - name: Run unit tests
         run: pnpm --filter @skillhub/web run test
         env:
@@ -74,16 +78,73 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build
 
+      # v2.1：复用之前 job 的 Playwright config 校验
+      - name: Verify Playwright config
+        run: pnpm --filter @skillhub/web run test:e2e:check
+
+      # v2.1：wait-on 改用 healthcheck 探针（避免 Next dev 首屏 200 但 API 还没编译的假阳性）
       - name: Cypress run
         uses: cypress-io/github-action@v7
         with:
           working-directory: apps/web
           start: pnpm dev
-          wait-on: 'http://localhost:3000'
-          wait-on-timeout: 120
+          wait-on: 'http://localhost:3000/api/v2/healthcheck'
+          wait-on-timeout: 180
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
           DIRECT_URL: postgresql://test:test@localhost:5432/test
           REDIS_URL: redis://localhost:6379
           NEXTAUTH_SECRET: test-secret
           NEXTAUTH_URL: http://localhost:3000
+
+  playwright-tests:
+    # v2.1 新增：补 Playwright E2E（之前 CI 只跑 cypress，遗漏了 Playwright）
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Enable pnpm (corepack, pre-installed node)
+        run: |
+          node --version
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @skillhub/web run db:generate
+
+      - name: Build workspace packages
+        run: pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @skillhub/web exec playwright install --with-deps chromium
+
+      - name: Verify Playwright config
+        run: pnpm --filter @skillhub/web run test:e2e:check
+
+      - name: Run Playwright tests
+        run: pnpm --filter @skillhub/web exec playwright test
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          DIRECT_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          NEXTAUTH_SECRET: test-secret
+          NEXTAUTH_URL: http://localhost:3000
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

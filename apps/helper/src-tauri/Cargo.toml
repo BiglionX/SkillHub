@@ -1,0 +1,66 @@
+[package]
+name = "skillhub-helper"
+version = "1.0.0"
+description = "SkillHub 桌面助手（Tauri + Rust）"
+authors = ["SkillHub"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "skillhub_helper_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["tray-icon", "single-instance"] }
+tauri-plugin-single-instance = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+
+# HTTP 服务（llm_proxy.rs 用）
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+
+# HTTP client（调 DeepSeek/OpenAI/GLM）
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# AES 加解密用户 Key
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 日志
+log = "0.4"
+env_logger = "0.11"
+
+# 端口探测
+portpicker = "0.1"
+
+# 配置文件路径
+dirs = "5.0"
+
+# 软件扫描
+glob = "0.3"
+serde_yaml = "0.9"
+
+# 文件解压（playbook 用）
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+
+# 命令执行
+tokio-process = { version = "0.2", features = ["full"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

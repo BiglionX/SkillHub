@@ -124,7 +124,7 @@ export async function PATCH(
     }
 
     // 返回更新后的用户信息（不包含敏感数据）
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { password: _unusedPassword, ...userWithoutPassword } = updatedUser;
     
     return NextResponse.json({

@@ -8,7 +8,7 @@ import type { jest } from '@jest/globals';
 // 使用全局 jest 对象进行 mock（不由 @jest/globals 导入）
 // 这是因为 jest.mock 工厂函数在模块提升（hoisting）上下文中运行，
 // 导入的 jest 变量可能尚未就绪
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 // 由于全局 mock 已被移除，此处导入的是真实的 SearchService 实现
 // 使用 jest.mock('@/lib/prisma'...) 来模拟数据库访问
@@ -31,8 +31,9 @@ import { prisma } from '@/lib/prisma';
 const mockQueryRaw = prisma.$queryRaw as jest.Mock;
 const mockQueryRawUnsafe = prisma.$queryRawUnsafe as jest.Mock;
 const mockFindMany = prisma.skill.findMany as jest.Mock;
-const mockCount = prisma.skill.count as jest.Mock;
-const mockGroupBy = prisma.skill.groupBy as jest.Mock;
+// mockCount / mockGroupBy 占位：保留以便未来扩展 mock 维度
+const _mockCount = prisma.skill.count as jest.Mock;
+const _mockGroupBy = prisma.skill.groupBy as jest.Mock;
 
 describe('SearchService', () => {
   let searchService: SearchService;

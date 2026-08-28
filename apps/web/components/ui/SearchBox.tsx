@@ -50,7 +50,7 @@ export default function SearchBox({
   }, []);
 
   // 原生防抖函数
-  // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const debounce = <T extends (...args: any[]) => void>(func: T, wait: number) => {
     let timeout: ReturnType<typeof setTimeout> | null = null;
     

@@ -6,7 +6,7 @@ import '@testing-library/jest-dom';
 import { Request as NodeFetchRequest, Response as NodeFetchResponse } from 'node-fetch';
 import { TextEncoder, TextDecoder } from 'util';
 
-/* eslint-disable @typescript-eslint/no-explicit-any, no-var */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // 扩展 NodeFetchResponse 添加 Web 标准 API 的方法
 // Next.js 15 使用 Response.json() 静态方法和 response.json() 实例方法
@@ -80,7 +80,7 @@ if (typeof globalThis.TransformStream === 'undefined') {
   }
   (globalThis as any).TransformStream = SimpleTransformStream;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any, no-var */
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -163,10 +163,10 @@ jest.mock('@/lib/prisma', () => ({
 // jest 29 的 jest.fn 泛型为 <T(返回), Y(参数)> 两参形式
 const mockAuth = jest.fn<Promise<null | { user: { id: string; email: string } }>, []>();
 jest.mock('@/lib/auth-config', () => ({ auth: mockAuth }));
-(global as any).__mockAuth = mockAuth;
+globalThis.__mockAuth = mockAuth;
 
 // 导出 mockPrisma 供测试文件使用
-(global as any).__mockPrisma = mockPrisma;
+globalThis.__mockPrisma = mockPrisma;
 
 // Suppress console errors during tests
 const originalConsoleError = console.error;

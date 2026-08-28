@@ -101,6 +101,21 @@ module.exports = [
     },
   },
   {
+    // .mjs 脚本：与 .js 同样暴露 Node 全局；ESLint flat config 默认不会把 *.mjs 归入 *.js glob
+    files: ["**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      // 脚本里大量使用 console/process/Buffer/fetch 等 Node / Web 全局，避免与 *.js block 行为不一致
+      "no-undef": "off",
+    },
+  },
+  {
     ignores: [
       "**/dist/**",
       "**/build/**",

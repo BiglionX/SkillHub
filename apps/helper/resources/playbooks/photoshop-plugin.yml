@@ -1,0 +1,42 @@
+# Photoshop 滤镜插件剧本（M2 内置白名单 #1）
+# 把 Skill 包里的 .8bf 文件复制到 PS Plug-ins 目录
+
+id: photoshop-plugin@v1
+software: photoshop
+description: 安装 Photoshop .8bf 滤镜插件
+preflight:
+  - detect: software
+  - ensure-disk-space: 100MB
+
+steps:
+  - id: download
+    type: http
+    description: 下载滤镜包
+    url: ${skill.download_url}
+    sha256: ${skill.checksum}
+    to: ${temp_dir}/plugin.zip
+
+  - id: extract
+    type: extract
+    description: 解压滤镜包
+    archive: ${temp_dir}/plugin.zip
+    to: ${temp_dir}/plugin
+
+  - id: copy-plugin
+    type: copy
+    description: 复制到 Photoshop Plug-ins 目录
+    from: ${temp_dir}/plugin/${skill.entry}
+    to: ${software.path}/Plug-ins/${skill.name}.8bf
+
+  - id: verify
+    type: file-exists
+    path: ${software.path}/Plug-ins/${skill.name}.8bf
+
+success:
+  message: "安装成功！重启 Photoshop 后，在「滤镜」菜单中找到「${skill.name}」。"
+  cta:
+    label: "打开 PS 插件目录"
+    action: open-path:${software.path}/Plug-ins
+
+failure:
+  rollback: true

@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import type { Review } from '@/types';
 
 export default function ReviewsPage() {
   // 获取待审核的 reviews
@@ -14,7 +15,7 @@ export default function ReviewsPage() {
     },
   });
 
-  const reviews = reviewsData?.data || [];
+  const reviews: Review[] = reviewsData?.data || [];
 
   if (isLoading) {
     return (
@@ -39,23 +40,23 @@ export default function ReviewsPage() {
         <div className="bg-white shadow rounded-lg p-4">
           <div className="text-sm font-medium text-gray-500">待审核</div>
           <div className="mt-2 text-3xl font-semibold text-yellow-600">
-            {reviews.filter((r: any) => r.status === 'PENDING_REVIEW').length}
+            {reviews.filter((r) => r.status === 'PENDING_REVIEW').length}
           </div>
         </div>
         <div className="bg-white shadow rounded-lg p-4">
           <div className="text-sm font-medium text-gray-500">审核中</div>
           <div className="mt-2 text-3xl font-semibold text-blue-600">
-            {reviews.filter((r: any) => r.status === 'UNDER_REVIEW').length}
+            {reviews.filter((r) => r.status === 'UNDER_REVIEW').length}
           </div>
         </div>
         <div className="bg-white shadow rounded-lg p-4">
           <div className="text-sm font-medium text-gray-500">今日已完成</div>
           <div className="mt-2 text-3xl font-semibold text-green-600">
-            {reviews.filter((r: any) => {
+            {reviews.filter((r) => {
+              if (r.status !== 'APPROVED' || !r.completedAt) return false;
               const today = new Date();
               const completedAt = new Date(r.completedAt);
-              return r.status === 'APPROVED' && 
-                     completedAt.toDateString() === today.toDateString();
+              return completedAt.toDateString() === today.toDateString();
             }).length}
           </div>
         </div>
@@ -100,7 +101,7 @@ export default function ReviewsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {reviews.map((review: any) => (
+                  {reviews.map((review) => (
                     <tr key={review.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">

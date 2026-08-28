@@ -13,7 +13,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, relative, basename } from 'path';
+import { join, relative } from 'path';
 
 const APPS_WEB_DIR = join(process.cwd(), 'apps', 'web');
 const APP_DIR = join(APPS_WEB_DIR, 'app');
@@ -53,7 +53,6 @@ function getAllPages(dir: string): string[] {
  */
 function checkFile(filePath: string): void {
   const content = readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n');
   const relPath = relative(APPS_WEB_DIR, filePath).replace(/\\/g, '/');
 
   // 跳过客户端组件（'use client'）
@@ -137,7 +136,10 @@ function main() {
   const grouped: Record<string, Issue[]> = {};
   for (const issue of issues) {
     if (!grouped[issue.type]) grouped[issue.type] = [];
-    grouped[issue.type]!.push(issue);
+    const bucket = grouped[issue.type];
+    if (bucket) {
+      bucket.push(issue);
+    }
   }
 
   for (const [type, items] of Object.entries(grouped)) {

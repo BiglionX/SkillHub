@@ -1,0 +1,54 @@
+# Blender 加载项剧本（M2 内置白名单 #3）
+# 复制 .py 到 scripts/addons/
+
+id: blender-addon@v1
+software: blender
+description: 安装 Blender .py 加载项
+preflight:
+  - detect: software
+  - ensure-disk-space: 50MB
+
+steps:
+  - id: download
+    type: http
+    description: 下载加载项包
+    url: ${skill.download_url}
+    sha256: ${skill.checksum}
+    to: ${temp_dir}/addon.zip
+
+  - id: extract
+    type: extract
+    description: 解压加载项
+    archive: ${temp_dir}/addon.zip
+    to: ${temp_dir}/addon
+
+  - id: copy-addon
+    type: copy
+    description: 复制到 Blender 加载项目录
+    from: ${temp_dir}/addon/${skill.slug}
+    to: ${software.path}/scripts/addons/${skill.slug}
+
+  - id: enable-addon
+    type: command
+    description: 启用加载项
+    cmd:
+        windows: blender.exe
+        macos: blender
+        linux: blender
+    args:
+      - --background
+      - --python-expr
+      - "import bpy; bpy.ops.preferences.addon_enable(module='${skill.slug}')"
+
+  - id: verify
+    type: file-exists
+    path: ${software.path}/scripts/addons/${skill.slug}/__init__.py
+
+success:
+  message: "安装成功！重启 Blender 后在「编辑 > 偏好设置 > 加载项」中启用。"
+  cta:
+    label: "打开 Blender 加载项目录"
+    action: open-path:${software.path}/scripts/addons
+
+failure:
+  rollback: true
