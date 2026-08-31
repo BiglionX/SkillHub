@@ -66,13 +66,13 @@ fn default_true() -> bool {
 }
 
 /// 剧本执行上下文（变量 + 临时目录）
-pub struct Context {
+pub struct ExecutionContext {
     pub vars: HashMap<String, String>,
     pub temp_dir: PathBuf,
     pub installed_software_path: Option<PathBuf>,
 }
 
-impl Context {
+impl ExecutionContext {
     pub fn new(temp_dir: PathBuf) -> Self {
         let mut vars = HashMap::new();
         vars.insert("temp_dir".to_string(), temp_dir.to_string_lossy().to_string());
@@ -109,7 +109,7 @@ pub enum ProgressEvent {
 /// 执行一个剧本
 pub async fn execute<F>(
     playbook: &Playbook,
-    ctx: &mut Context,
+    ctx: &mut ExecutionContext,
     mut on_progress: F,
 ) -> Result<()>
 where
@@ -170,7 +170,7 @@ where
     Ok(())
 }
 
-async fn execute_preflight(step: &PreflightStep, _ctx: &Context) -> Result<()> {
+async fn execute_preflight(step: &PreflightStep, _ctx: &ExecutionContext) -> Result<()> {
     match step {
         PreflightStep::Detect { detect: _ } => {
             // 检测软件路径（由 caller 注入 installed_software_path）
@@ -188,7 +188,7 @@ async fn execute_preflight(step: &PreflightStep, _ctx: &Context) -> Result<()> {
     }
 }
 
-async fn execute_step(step: &Step, ctx: &Context) -> Result<()> {
+async fn execute_step(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     match step.step_type.as_str() {
         "http" => step_http(step, ctx).await,
         "extract" => step_extract(step, ctx).await,
@@ -205,7 +205,7 @@ async fn execute_step(step: &Step, ctx: &Context) -> Result<()> {
     }
 }
 
-async fn rollback_step(step: &Step, _ctx: &Context) -> Result<()> {
+async fn rollback_step(step: &Step, _ctx: &ExecutionContext) -> Result<()> {
     // 简化版：仅 file copy/move 支持回滚（删除复制目标）
     match step.step_type.as_str() {
         "copy" | "move" => {
@@ -216,7 +216,7 @@ async fn rollback_step(step: &Step, _ctx: &Context) -> Result<()> {
     }
 }
 
-async fn step_http(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_http(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let url = step.params.get("url")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("http step 缺少 url"))?;
@@ -257,7 +257,7 @@ async fn step_http(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_extract(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_extract(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let archive = step.params.get("archive").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("extract step 缺少 archive"))?;
     let to = step.params.get("to").and_then(|v| v.as_str())
@@ -268,29 +268,38 @@ async fn step_extract(step: &Step, ctx: &Context) -> Result<()> {
 
     fs::create_dir_all(&to).await.context("创建解压目录失败")?;
 
-    let file = std::fs::File::open(&archive).context("打开压缩包失败")?;
-    let mut zip = zip::ZipArchive::new(file).context("解析 zip 失败")?;
+    // zip crate 的内部 reader 持有 dyn Read（非 Send），不能跨 await 点；
+    // 整段解压放到阻塞线程池里执行
+    let to_owned = to.clone();
+    tokio::task::spawn_blocking(move || -> Result<()> {
+        let file = std::fs::File::open(&archive).context("打开压缩包失败")?;
+        let mut zip = zip::ZipArchive::new(file).context("解析 zip 失败")?;
 
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).context("读取 entry 失败")?;
-        let entry_path = Path::new(&to).join(entry.name());
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i).context("读取 entry 失败")?;
+            let entry_path = std::path::Path::new(&to_owned).join(entry.name());
 
-        if entry.is_dir() {
-            fs::create_dir_all(&entry_path).await?;
-            continue;
+            if entry.is_dir() {
+                std::fs::create_dir_all(&entry_path)?;
+                continue;
+            }
+
+            if let Some(parent) = entry_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut out = std::fs::File::create(&entry_path).context("创建文件失败")?;
+            std::io::copy(&mut entry, &mut out).context("写入文件失败")?;
         }
 
-        if let Some(parent) = entry_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        let mut out = std::fs::File::create(&entry_path).context("创建文件失败")?;
-        std::io::copy(&mut entry, &mut out).context("写入文件失败")?;
-    }
+        Ok(())
+    })
+    .await
+    .context("spawn_blocking 失败")??;
 
     Ok(())
 }
 
-async fn step_copy(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_copy(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let from = step.params.get("from").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("copy step 缺少 from"))?;
     let to = step.params.get("to").and_then(|v| v.as_str())
@@ -312,7 +321,7 @@ async fn step_copy(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_move(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_move(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let from = step.params.get("from").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("move step 缺少 from"))?;
     let to = step.params.get("to").and_then(|v| v.as_str())
@@ -329,7 +338,7 @@ async fn step_move(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_delete(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_delete(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let path = step.params.get("path").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("delete step 缺少 path"))?;
     let path = ctx.interpolate(path);
@@ -343,7 +352,7 @@ async fn step_delete(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_command(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_command(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let cmd = step.params.get("cmd")
         .ok_or_else(|| anyhow!("command step 缺少 cmd"))?;
     let args: Vec<String> = step.params.get("args")
@@ -387,7 +396,7 @@ async fn step_command(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_file_exists(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_file_exists(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let path = step.params.get("path").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("file-exists step 缺少 path"))?;
     let path = ctx.interpolate(path);
@@ -398,7 +407,7 @@ async fn step_file_exists(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_register_dll(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_register_dll(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         let path = step.params.get("path").and_then(|v| v.as_str())
@@ -422,7 +431,7 @@ async fn step_register_dll(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_pip_install(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_pip_install(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let packages: Vec<String> = step.params.get("packages")
         .and_then(|v| v.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
@@ -447,7 +456,7 @@ async fn step_pip_install(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_npm_install(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_npm_install(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let packages: Vec<String> = step.params.get("packages")
         .and_then(|v| v.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
@@ -472,7 +481,7 @@ async fn step_npm_install(step: &Step, ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn step_open_path(step: &Step, ctx: &Context) -> Result<()> {
+async fn step_open_path(step: &Step, ctx: &ExecutionContext) -> Result<()> {
     let path = step.params.get("path").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("open-path step 缺少 path"))?;
     let path = ctx.interpolate(path);
@@ -539,7 +548,7 @@ mod tests {
     fn test_interpolate() {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), "foo".to_string());
-        let mut ctx = Context::new(PathBuf::from("/tmp"));
+        let mut ctx = ExecutionContext::new(PathBuf::from("/tmp"));
         ctx.vars.extend(vars);
 
         assert_eq!(ctx.interpolate("${name}.txt"), "foo.txt");

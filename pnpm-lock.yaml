@@ -93,6 +93,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.0.0
         version: 2.11.4
+      '@tauri-apps/plugin-opener':
+        specifier: ^2.5.4
+        version: 2.5.5
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -2781,6 +2784,12 @@ packages:
       '@tauri-apps/cli-win32-arm64-msvc': 2.11.4
       '@tauri-apps/cli-win32-ia32-msvc': 2.11.4
       '@tauri-apps/cli-win32-x64-msvc': 2.11.4
+    dev: false
+
+  /@tauri-apps/plugin-opener@2.5.5:
+    resolution: {integrity: sha512-xvzGai5aQds8j8R8RsUK/lW6pGG50YgOYIPLzvkqmkwAj7dfySOD7sGtejRzvVdMmv1EQfKVEFh1MvmDp8QR0g==}
+    dependencies:
+      '@tauri-apps/api': 2.11.1
     dev: false
 
   /@testing-library/dom@10.4.1:

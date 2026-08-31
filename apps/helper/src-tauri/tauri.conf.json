@@ -57,5 +57,9 @@
       "minimumSystemVersion": "10.15"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "opener": {
+      "requireLiteralLeadingDot": false
+    }
+  }
 }

@@ -14,8 +14,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = ["tray-icon", "single-instance"] }
+tauri = { version = "2.0", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.0"
+tauri-plugin-opener = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -55,8 +56,7 @@ serde_yaml = "0.9"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 
-# 命令执行
-tokio-process = { version = "0.2", features = ["full"] }
+# 进程命令通过 std::process::Command 同步执行；tokio-process 已 archived 不再使用
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winreg = "0.52"
