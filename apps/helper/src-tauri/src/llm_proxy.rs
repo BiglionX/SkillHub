@@ -20,6 +20,7 @@ use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
 use crate::key_store::KeyStore;
+use crate::protocol;
 use crate::provider::{ChatMessage, ChatRequest, LlmProvider, ProviderConfig};
 
 /// 全局状态，注入到 axum
@@ -93,8 +94,9 @@ struct DiscoverResponse {
 /// GET /llm/discover
 /// Web 端无需事先知道端口时，可扫常见端口范围探测助手
 async fn handle_discover(State(state): State<Arc<LlmProxyState>>) -> impl IntoResponse {
-    let (provider, _) = state.key_store.get_active_key().ok().flatten();
-    let has_key = provider.is_some();
+    let active = state.key_store.get_active_key().ok().flatten();
+    let provider = active.as_ref().map(|(p, _)| p.clone());
+    let has_key = active.is_some();
     Json(serde_json::json!({
         "name": "SkillHub Helper",
         "version": env!("CARGO_PKG_VERSION"),
@@ -143,7 +145,9 @@ struct ChatError {
 async fn handle_chat(
     State(state): State<Arc<LlmProxyState>>,
     Json(body): Json<ChatBody>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
     // 1. 取用户当前激活的 Key
     let (provider, api_key) = match state.key_store.get_active_key() {
         Ok(Some(k)) => k,
@@ -154,7 +158,8 @@ async fn handle_chat(
                     reason: "helper_no_key",
                     message: "助手未配置 LLM Key，请去设置页填入".to_string(),
                 }),
-            );
+            )
+                .into_response();
         }
         Err(e) => {
             return (
@@ -163,7 +168,8 @@ async fn handle_chat(
                     reason: "key_store_error",
                     message: e.to_string(),
                 }),
-            );
+            )
+                .into_response();
         }
     };
 
@@ -220,6 +226,7 @@ async fn handle_chat(
                     duration_ms: resp.duration_ms,
                 }),
             )
+                .into_response()
         }
         Err(e) => {
             log::warn!("LLM 调用失败: {}", e);
@@ -230,6 +237,7 @@ async fn handle_chat(
                     message: e.to_string(),
                 }),
             )
+                .into_response()
         }
     }
 }
@@ -243,8 +251,9 @@ struct StatusResponse {
 }
 
 async fn handle_status(State(state): State<Arc<LlmProxyState>>) -> impl IntoResponse {
-    let (provider, _) = state.key_store.get_active_key().ok().flatten();
-    let has_key = provider.is_some();
+    let active = state.key_store.get_active_key().ok().flatten();
+    let provider = active.as_ref().map(|(p, _)| p.clone());
+    let has_key = active.is_some();
     Json(StatusResponse {
         online: true,
         has_key,

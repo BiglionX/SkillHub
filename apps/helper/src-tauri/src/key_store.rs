@@ -110,8 +110,8 @@ impl KeyStore {
 
         // nonce + ciphertext 一起 base64
         let mut combined = Vec::with_capacity(12 + ciphertext.len());
-        combined.extend_from(&nonce_bytes);
-        combined.extend_from(&ciphertext);
+        combined.extend_from_slice(&nonce_bytes);
+        combined.extend_from_slice(&ciphertext);
         Ok(general_purpose::STANDARD.encode(combined))
     }
 

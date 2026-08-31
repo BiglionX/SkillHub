@@ -111,8 +111,30 @@ my-skill/
 7. **部署配置已补齐（2026-04）**：`apps/web/next.config.js`（含 transpilePackages、standalone、outputFileTracingRoot、webpack node-builtin externals——instrumentation 编译必需）、`apps/web/vercel.json`（已改为 pnpm workspace 命令）、`Dockerfile.web` + `.dockerignore`（新建，Docker 部署用）、`.env.production.example`（补齐 OIDC/DIRECT_URL/SkillsMP/Upstash 等变量）。**已在本地跑通 `next build`（含 standalone 产物）**，但 Vercel/Docker 部署仍未实跑。
    - **Vercel 已实跑（2026-08）并修复三处**：① `apps/web/vercel.json` 的 `buildCommand` 需先构建 workspace 依赖再构建 web（`pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/skill-validator build && pnpm --filter @skillhub/web run build`），否则全新 checkout 缺 `dist/` 报 `Can't resolve '@skillhub/widget'/'@skillhub/search-sdk'`；② `packages/widget` devDeps 的 `@types/react` 从 ^18 对齐到 ^19（+`@types/react-dom`），否则 tsup `--dts` 因 @types/react 18/19 双版本冲突报 TS2786；③ **Edge Function 修复**：`next.config.js` 的 node 内建模块 externals 必须限定 `nextRuntime === 'nodejs'`（否则 middleware Edge bundle 引用 `path/fs/crypto/os` 等被 Vercel 拒绝），且 `instrumentation.ts` 必须 Edge 安全——Next 15 会把它同时编译进 Edge 运行时，任何静态引入的 Node 内建模块（path/dotenv/调度器等）都要移入 `NEXT_RUNTIME === 'nodejs'` 守卫 + 动态导入。
 8. **仓库外的流浪 lockfile**：`D:\BigLionX\package-lock.json`（633KB，仓库上一级目录）会干扰 Next 根目录探测——已用 `outputFileTracingRoot` 屏蔽，建议手动删除该文件。
+9. **apps/helper 已接入 `tauri-plugin-opener`（2026-08）**：LLM Key 设置页的"获取 Key →"原是 `<a target="_blank">`，在 Tauri 2 WebView 里不会自动跳转默认浏览器。修复后走 `tauri-plugin-opener::openUrl()` 走系统 shell。**ACL 严格收紧**：`apps/helper/src-tauri/capabilities/default.json` 仅放行三个 Provider 文档域名（`platform.deepseek.com`、`platform.openai.com`、`open.bigmodel.cn`，glob `*`），非白名单 URL 在 Rust 层被拦截——前端被注入也只能量开白名单域名。新增 Provider 时务必同步更新该文件。
 
-## 9. 对 AI 代理的工作指引
+## 9. 版本号规则（2026-08 落地）
+
+格式 **`<X>.<Y>.<Z>`**，三段百进制：
+
+- 每次发版只动 `Z`：`Z + 1`
+- `Z` 满百（`99 → 100`）→ `Z = 0`，`Y + 1`
+- `Y` 满百 → `Y = 0`，`X + 1`
+- 起始版号：**`0.1.00`**
+- `Z` 永远两位（`00`–`99`，不满补零）；`Y` < 10 时不补零（`0.1.00` / `0.10.00` / `1.0.00`）
+
+工具：[`scripts/bump-version.py`](scripts/bump-version.py)，支持 `package.json` / `Cargo.toml` / `tauri.conf.json`，自动识别文件类型：
+
+```bash
+python scripts/bump-version.py --file apps/helper/package.json          # +1
+python scripts/bump-version.py --file apps/helper/package.json --dry-run # 预览
+python scripts/bump-version.py --file packages/new-thing/package.json --start   # 新包首次发版 → 0.1.00
+python scripts/bump-version.py --file apps/helper/package.json --set 0.3.05      # 显式跳版本
+```
+
+已发版到 npm / crates.io 的版本**不可重置**（破坏依赖链）；规则适用于下一次发版。详见 [`docs/plans/VERSIONING_RULE.md`](docs/plans/VERSIONING_RULE.md)。
+
+## 10. 对 AI 代理的工作指引
 
 - 先读本文件 + `docs/` 中相关文档，再动手
 - 仓库技能在 `skills/` 目录（Agent Skills 标准），按任务类型加载：开发用 `repo-dev`、技能包静态校验用 `skill-package-validator`、运行时冒烟用 `skill-smoke-test`、审查用 `code-review`

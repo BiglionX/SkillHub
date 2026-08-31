@@ -38,13 +38,23 @@ input, textarea {
 .bg-blue-700 { background: #1d4ed8; }
 .bg-gray-100 { background: #f3f4f6; }
 .bg-gray-200 { background: #e5e7eb; }
+.bg-green-50 { background: #f0fdf4; }
+.bg-green-100 { background: #dcfce7; }
+.bg-green-600 { background: #16a34a; }
+.bg-green-700 { background: #15803d; }
+.bg-red-50 { background: #fef2f2; }
+.bg-amber-50 { background: #fffbeb; }
 
 .text-gray-900 { color: #111827; }
 .text-gray-700 { color: #374151; }
 .text-gray-500 { color: #6b7280; }
 .text-blue-600 { color: #2563eb; }
 .text-green-600 { color: #16a34a; }
+.text-green-700 { color: #15803d; }
+.text-green-900 { color: #14532d; }
 .text-red-600 { color: #dc2626; }
+.text-red-700 { color: #b91c1c; }
+.text-amber-700 { color: #b45309; }
 .text-white { color: #fff; }
 
 .text-xs { font-size: 12px; }
@@ -92,15 +102,24 @@ input, textarea {
 .border { border: 1px solid; }
 .border-gray-200 { border-color: #e5e7eb; }
 .border-gray-300 { border-color: #d1d5db; }
+.border-blue-200 { border-color: #bfdbfe; }
 .border-blue-500 { border-color: #3b82f6; }
+.border-green-200 { border-color: #bbf7d0; }
+.border-red-200 { border-color: #fecaca; }
+.border-amber-200 { border-color: #fde68a; }
+
+.shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
 
 .w-full { width: 100%; }
 .h-4 { height: 16px; }
 .w-4 { width: 16px; }
 
 .hover\:bg-blue-700:hover { background: #1d4ed8; }
+.hover\:bg-green-700:hover { background: #15803d; }
+.hover\:bg-gray-50:hover { background: #f9fafb; }
 .hover\:bg-gray-200:hover { background: #e5e7eb; }
 .hover\:underline:hover { text-decoration: underline; }
+.hover\:text-red-600:hover { color: #dc2626; }
 
 .disabled\:opacity-50:disabled { opacity: 0.5; }
 
@@ -108,3 +127,6 @@ input, textarea {
   border-color: #3b82f6;
   outline: none;
 }
+
+/* v2.0.3 补充：圆点徽章 */
+.shrink-0 { flex-shrink: 0; }
