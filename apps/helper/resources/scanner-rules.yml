@@ -106,3 +106,186 @@ notion:
       - "notion.id"
     common_paths:
       - "/Applications/Notion.app"
+
+# === v2.0.7 起扩展的 software_tag（覆盖：办公 / IDE / 浏览器 / 通讯 / 笔记 / 通讯）===
+# 数据维护原则：
+#   1. 新 software_tag 必须同步扩 seed-skills.json（手工种子或 M3 CI 同步）——见 docs/features/SEED_SKILLS_COLD_START.md
+#   2. 当前 15 个新增中，6 个（word/webstorm/intellij/pycharm/cursor/chrome）已在 seed-skills.json 手工挂 Slug，
+#      其余 9 个（vs/edge/slack/dingtalk/wecom/discord/zoom/obsidian/wechat）Section 2 有路径但无按钮，等 M3 填种子
+word:
+  display_name: "Microsoft Word"
+  software_tag: "word"
+  windows:
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\WINWORD.EXE"
+    common_paths:
+      - "C:\\Program Files\\Microsoft Office\\root\\Office*"
+      - "C:\\Program Files (x86)\\Microsoft Office\\root\\Office*"
+  macos:
+    bundle_ids:
+      - "com.microsoft.Word"
+
+webstorm:
+  display_name: "WebStorm"
+  software_tag: "webstorm"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\JetBrains\\Toolbox\\apps\\WebStorm*"
+      - "C:\\Program Files\\JetBrains\\WebStorm*"
+  macos:
+    bundle_ids:
+      - "com.jetbrains.WebStorm"
+    common_paths:
+      - "/Applications/WebStorm.app"
+
+intellij:
+  display_name: "IntelliJ IDEA"
+  software_tag: "intellij"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\JetBrains\\Toolbox\\apps\\IntelliJ-IDEA*"
+      - "C:\\Program Files\\JetBrains\\IntelliJ IDEA*"
+  macos:
+    bundle_ids:
+      - "com.jetbrains.intellij"
+    common_paths:
+      - "/Applications/IntelliJ IDEA.app"
+
+pycharm:
+  display_name: "PyCharm"
+  software_tag: "pycharm"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\JetBrains\\Toolbox\\apps\\PyCharm*"
+      - "C:\\Program Files\\JetBrains\\PyCharm*"
+  macos:
+    bundle_ids:
+      - "com.jetbrains.pycharm"
+    common_paths:
+      - "/Applications/PyCharm.app"
+
+cursor:
+  display_name: "Cursor"
+  software_tag: "cursor"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Programs\\Cursor\\Cursor.exe"
+  macos:
+    bundle_ids:
+      - "com.cursor.Cursor"
+    common_paths:
+      - "/Applications/Cursor.app"
+
+vs:
+  display_name: "Visual Studio"
+  software_tag: "vs"
+  windows:
+    registry_paths:
+      - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{*}_is1"
+    common_paths:
+      - "C:\\Program Files\\Microsoft Visual Studio\\*"
+
+chrome:
+  display_name: "Google Chrome"
+  software_tag: "chrome"
+  windows:
+    common_paths:
+      - "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+      - "%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe"
+  macos:
+    bundle_ids:
+      - "com.google.Chrome"
+    common_paths:
+      - "/Applications/Google Chrome.app"
+
+edge:
+  display_name: "Microsoft Edge"
+  software_tag: "edge"
+  windows:
+    common_paths:
+      - "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+      - "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+
+slack:
+  display_name: "Slack"
+  software_tag: "slack"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\slack\\slack.exe"
+  macos:
+    bundle_ids:
+      - "com.tinyspeck.chatlyio"
+    common_paths:
+      - "/Applications/Slack.app"
+
+dingtalk:
+  display_name: "钉钉"
+  software_tag: "dingtalk"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\DingTalk\\DingTalk.exe"
+  macos:
+    bundle_ids:
+      - "com.alibaba.DingTalk"
+    common_paths:
+      - "/Applications/DingTalk.app"
+
+wecom:
+  display_name: "企业微信"
+  software_tag: "wecom"
+  windows:
+    common_paths:
+      - "C:\\Program Files (x86)\\Tencent\\WeChat\\WXWork\\WXWork.exe"
+  macos:
+    bundle_ids:
+      - "com.tencent.WeWork"
+    common_paths:
+      - "/Applications/企业微信.app"
+
+discord:
+  display_name: "Discord"
+  software_tag: "discord"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Discord\\Update.exe"
+  macos:
+    bundle_ids:
+      - "com.hnc.Discord"
+    common_paths:
+      - "/Applications/Discord.app"
+
+zoom:
+  display_name: "Zoom"
+  software_tag: "zoom"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Zoom\\bin\\Zoom.exe"
+  macos:
+    bundle_ids:
+      - "us.zoom.xos"
+    common_paths:
+      - "/Applications/zoom.us.app"
+
+obsidian:
+  display_name: "Obsidian"
+  software_tag: "obsidian"
+  windows:
+    common_paths:
+      - "%LOCALAPPDATA%\\Obsidian\\Obsidian.exe"
+  macos:
+    bundle_ids:
+      - "md.obsidian"
+    common_paths:
+      - "/Applications/Obsidian.app"
+
+wechat:
+  display_name: "微信"
+  software_tag: "wechat"
+  windows:
+    common_paths:
+      - "C:\\Program Files (x86)\\Tencent\\WeChat\\WeChat.exe"
+  macos:
+    bundle_ids:
+      - "com.tencent.xinWeChat"
+    common_paths:
+      - "/Applications/WeChat.app"
