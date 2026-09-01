@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-01",
+  "baseUrl": "https://skillhub.proclaw.cc",
+  "note": "桌面助手内置推荐摘要——只挂 slug + blurb，不挂 SKILL.md 全文。维护流程见 docs/features/SEED_SKILLS_COLD_START.md",
+  "photoshop": {
+    "recommended": [
+      { "slug": "ps-batch-resize", "blurb": "一键批量改尺寸 + 导出" },
+      { "slug": "ps-skin-smooth", "blurb": "人像磨皮（中度自然）" },
+      { "slug": "ps-color-grading-presets", "blurb": "调色预设一键应用" }
+    ]
+  },
+  "vscode": {
+    "recommended": [
+      { "slug": "vscode-error-translator", "blurb": "英文报错翻成中文 + 修复建议" },
+      { "slug": "vscode-git-graph-explainer", "blurb": "Git 历史图形化 + diff 解释" },
+      { "slug": "vscode-snippet-library", "blurb": "常用代码片段库（按语言分组）" }
+    ]
+  },
+  "blender": {
+    "recommended": [
+      { "slug": "blender-render-farm-helper", "blurb": "本地 + 云端混部渲染调度" },
+      { "slug": "blender-material-presets", "blurb": "PBR 材质预设一键套用" }
+    ]
+  },
+  "excel": {
+    "recommended": [
+      { "slug": "excel-vlookup-wizard", "blurb": "VLOOKUP / XLOOKUP 公式生成器" },
+      { "slug": "excel-pivot-suggest", "blurb": "根据数据自动建议透视表维度" },
+      { "slug": "excel-chart-from-table", "blurb": "一句话生成图表 + 配色" }
+    ]
+  },
+  "powerpoint": {
+    "recommended": [
+      { "slug": "powerpoint-outline-to-deck", "blurb": "大纲 → 完整 PPT（自动配图）" },
+      { "slug": "powerpoint-template-fill", "blurb": "套用模板 + 批量替换占位符" }
+    ]
+  },
+  "figma": {
+    "recommended": [
+      { "slug": "figma-design-tokens-export", "blurb": "把设计稿导出为 CSS variables / Tailwind config" },
+      { "slug": "figma-i18n-sync", "blurb": "多语言文案同步 + 缺译提醒" }
+    ]
+  },
+  "feishu": {
+    "recommended": [
+      { "slug": "feishu-meeting-summary", "blurb": "会议录音 → 纪要 + TODO 提取" },
+      { "slug": "feishu-doc-to-wechat", "blurb": "飞书文档一键转公众号格式" }
+    ]
+  },
+  "notion": {
+    "recommended": [
+      { "slug": "notion-database-from-csv", "blurb": "CSV → Notion 数据库（自动识别字段类型）" },
+      { "slug": "notion-weekly-review", "blurb": "周报自动聚合（数据库 + 日历）" }
+    ]
+  },
+  "word": {
+    "recommended": [
+      { "slug": "word-doc-summary", "blurb": "长文档一键摘要 + 章节大纲" },
+      { "slug": "word-doc-compare", "blurb": "两个版本 Word 文档逐段对比差异" }
+    ]
+  },
+  "webstorm": {
+    "recommended": [
+      { "slug": "jetbrains-error-translator", "blurb": "JetBrains 全家桶报错翻成中文 + 修复建议" },
+      { "slug": "webstorm-missing-import-fix", "blurb": "检测缺失 import / 补包推荐" }
+    ]
+  },
+  "intellij": {
+    "recommended": [
+      { "slug": "intellij-refactor-wizard", "blurb": "复杂 Java 重构一步步引导（按光标位置给建议）" },
+      { "slug": "jetbrains-error-translator", "blurb": "JetBrains 全家桶报错翻中文（与 webstorm 共享）" }
+    ]
+  },
+  "pycharm": {
+    "recommended": [
+      { "slug": "pycharm-type-hint-coach", "blurb": "Python 类型注解补全 + PEP8 风格校准" },
+      { "slug": "pycharm-debug-explainer", "blurb": "断点状态变量一步步解释（面向新手）" }
+    ]
+  },
+  "cursor": {
+    "recommended": [
+      { "slug": "cursor-rule-from-codebase", "blurb": "扫描仓库自动生成 .cursorrules" },
+      { "slug": "cursor-composer-explainer", "blurb": "把 Composer 多文件改动拆解开给团队逐行 review" }
+    ]
+  },
+  "chrome": {
+    "recommended": [
+      { "slug": "chrome-tab-organizer", "blurb": "一键整理标签页（按域名分组 / 保存当前会话）" },
+      { "slug": "chrome-cookie-bulk-export", "blurb": "针对开发场景批量导出当前域名所有 cookie（开发调试用）" }
+    ]
+  }
+}

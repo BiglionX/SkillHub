@@ -22,9 +22,10 @@
  * 安装进度通过 Tauri event `install-progress` / `install-complete`
  * 在 App.tsx 顶层弹窗展示（覆盖 installSuccess / installFailure）。
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import seedSkillsData from '../../resources/seed-skills.json';
 
 interface HelperInfo {
   version: string;
@@ -111,6 +112,25 @@ interface InstalledSkill {
   jobId: string;
 }
 
+// v2.0.6：种子推荐摘要——仅 slug + blurb，不挂 SKILL.md 全文。
+// 边界遵循 ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD §5.2「助手只做执行」。
+interface SeedSkillRef {
+  slug: string;
+  blurb: string;
+}
+interface SeedCatalogEntry {
+  recommended: SeedSkillRef[];
+}
+interface SeedCatalog {
+  schemaVersion: number;
+  generatedAt: string;
+  baseUrl: string;
+  note?: string;
+  [softwareTag: string]: SeedCatalogEntry | number | string | undefined;
+}
+const SEED_SKILLS = seedSkillsData as unknown as SeedCatalog;
+const SEED_META_KEYS = new Set(['schemaVersion', 'generatedAt', 'baseUrl', 'note']);
+
 // v2.0.5：dismissUntil 时间戳常量（7 天）
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const DISMISS_KEY = 'skillhub-helper-dismissed-until';
@@ -184,6 +204,9 @@ export default function Settings({
   });
   const [openingDocs, setOpeningDocs] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
+
+  // v2.0.6：种子推荐跳转失败提示（独立维度，不受 Provider 切换影响）
+  const [seedError, setSeedError] = useState<string | null>(null);
 
   // ==== 本机软件 ====
   const [scanned, setScanned] = useState<ScannedSoftware[]>([]);
@@ -420,6 +443,44 @@ export default function Settings({
         /* ignore */
       }
     }
+  };
+
+  // v2.0.6：基于内置 seed-skills.json 构建 software_tag → 推荐列表索引。
+  // 仅索引「形如 { recommended: [...] }」的业务条目，跳过顶层 schemaVersion 等元字段。
+  const seedByTag = useMemo(() => {
+    const m = new Map<string, SeedSkillRef[]>();
+    for (const [key, val] of Object.entries(SEED_SKILLS)) {
+      if (SEED_META_KEYS.has(key)) continue;
+      if (val && Array.isArray((val as SeedCatalogEntry).recommended)) {
+        m.set(key, (val as SeedCatalogEntry).recommended);
+      }
+    }
+    return m;
+  }, []);
+
+  // v2.0.6：种子推荐 Skill → 跳 Web 端（不破坏 PRD §5.2「助手只做执行」）
+  const handleOpenSeed = async (softwareTag: string) => {
+    const base = SEED_SKILLS.baseUrl ?? 'https://skillhub.proclaw.cc';
+    const url = `${base}/?installed=${encodeURIComponent(softwareTag)}`;
+    setSeedError(null);
+    try {
+      await openUrl(url);
+      return;
+    } catch {
+      /* fall through to clipboard fallback */
+    }
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch {
+      /* ignore */
+    }
+    setSeedError(
+      copied
+        ? `未能调起默认浏览器，链接已复制到剪贴板：${url}`
+        : `未能打开链接且剪贴板不可用，请手动复制：${url}`,
+    );
   };
 
   // ================== Onboarding 全屏引导 ==================
@@ -799,21 +860,44 @@ export default function Settings({
             <p className="text-xs text-gray-500">未检测到任何已配置软件（Photoshop / VSCode / Blender / Excel / PowerPoint / Figma / 飞书 / Notion）</p>
           )}
 
+          {seedError && (
+            <p className="mb-2 break-all rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+              {seedError}
+            </p>
+          )}
+
           {scanned.length > 0 && (
             <ul className="divide-y divide-gray-100">
-              {scanned.map((s) => (
-                <li key={s.software_tag} className="flex items-center justify-between py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      <span className="text-sm font-medium text-gray-900">{s.display_name}</span>
+              {scanned.map((s) => {
+                const recommended = seedByTag.get(s.software_tag);
+                return (
+                  <li
+                    key={s.software_tag}
+                    className="flex items-center justify-between py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600">✓</span>
+                        <span className="text-sm font-medium text-gray-900">{s.display_name}</span>
+                      </div>
+                      <p className="mt-0.5 truncate font-mono text-[11px] text-gray-500" title={s.path}>
+                        {s.path}
+                      </p>
                     </div>
-                    <p className="mt-0.5 truncate font-mono text-[11px] text-gray-500" title={s.path}>
-                      {s.path}
-                    </p>
-                  </div>
-                </li>
-              ))}
+                    {recommended && recommended.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSeed(s.software_tag)}
+                        className="ml-3 shrink-0 rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                        aria-label={`查看 ${s.display_name} 的 ${recommended.length} 个推荐 Skill`}
+                        title={`跳转 Web 端查看 ${s.display_name} 的推荐 Skill`}
+                      >
+                        查看 {recommended.length} 个推荐 Skill →
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
