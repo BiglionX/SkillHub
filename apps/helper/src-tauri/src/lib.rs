@@ -30,9 +30,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // 单实例：第二次启动时聚焦已有窗口
+            // v2.0.5：补 unminimize + 临时置顶抢焦点
+            // 旧版 set_focus() 对最小化窗口无效，唤起时窗口只在任务栏闪一下
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
+                let _ = window.unminimize();
                 let _ = window.show();
+                let _ = window.set_focus();
+                // 临时置顶 300ms 抢焦点，避免被其他应用抢走
+                let _ = window.set_always_on_top(true);
+                let window_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    let _ = window_clone.set_always_on_top(false);
+                });
             }
         }))
         .plugin(tauri_plugin_opener::init())

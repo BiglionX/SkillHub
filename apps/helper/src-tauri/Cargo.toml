@@ -1,6 +1,6 @@
 [package]
 name = "skillhub-helper"
-version = "1.0.0"
+version = "2.0.05"
 description = "SkillHub 桌面助手（Tauri + Rust）"
 authors = ["SkillHub"]
 edition = "2021"

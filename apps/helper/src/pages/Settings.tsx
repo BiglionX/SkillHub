@@ -1,18 +1,26 @@
 /**
- * SkillHub Helper 设置页（v2.0.4 重构：主控台 + Onboarding）
+ * SkillHub Helper 设置页（v2.0.5 UX 审计修复）
  *
- * 主控台 3 个 section：
+ * v2.0.5 关键改动（基于桌面端 UX 审计报告）：
+ *   - Onboarding 不再"跳过即永久失联"：改用 dismissUntil 时间戳，7 天后引导自动重现
+ *   - Onboarding 表单补 Test 按钮（与主控台一致），避免首次配 Key 盲存验证
+ *   - savedTick 按 Provider 分桶，切换 Provider 不再误显"已保存"
+ *   - Section 3 空状态文案去除 skillhub:// 内部协议术语
+ *   - Section 4 由"关于"改为"诊断 / 故障排查"卡片（端口号、协议注册状态、日志路径）
+ *
+ * 主控台 4 个 section：
  *   1. LLM Key 配置（紧凑：已配/未配 → 可展开编辑）
  *   2. 本机软件（扫描 + 列表 + 上次扫描时间）
  *   3. 已安装 Skills（Web 端走 skillhub:// 唤起助手安装后累加）
+ *   4. 诊断 / 故障排查（端口号、协议状态、日志路径）
  *
- * Onboarding（首次启动无 Key）：
- *   ① 填 LLM Key（M1）
- *   ② 扫描本机软件（M2 · F9）
- *   ③ 提示去 Web 端用 NLU 搜索 Skills —— 桌面端不负责推荐/选择（M1+M2）
+ * Onboarding（首次启动无 Key 或 dismissUntil 过期）：
+ *   ① 填 LLM Key（M1）—— 现在可直接 Test Key 再保存
+ *   ② 扫描本机软件（M2 · F9）—— 由主控台 Section 2 自动完成
+ *   ③ 提示去 Web 端用 NLU 搜索 Skills —— 桌面端不负责推荐/选择
  *
  * 安装进度通过 Tauri event `install-progress` / `install-complete`
- * 在 App.tsx 顶层弹窗展示。
+ * 在 App.tsx 顶层弹窗展示（覆盖 installSuccess / installFailure）。
  */
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -22,6 +30,7 @@ interface HelperInfo {
   version: string;
   name: string;
   helper_port?: number;
+  protocol_registered?: boolean;
 }
 
 type Provider = 'deepseek' | 'openai' | 'glm' | 'custom';
@@ -99,6 +108,10 @@ interface InstalledSkill {
   jobId: string;
 }
 
+// v2.0.5：dismissUntil 时间戳常量（7 天）
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const DISMISS_KEY = 'skillhub-helper-dismissed-until';
+
 export default function Settings({ installedSkills }: { installedSkills: InstalledSkill[] }) {
   const [info, setInfo] = useState<HelperInfo | null>(null);
   const [stage, setStage] = useState<Stage>('console'); // useEffect 内覆盖
@@ -123,7 +136,13 @@ export default function Settings({ installedSkills }: { installedSkills: Install
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [savedTick, setSavedTick] = useState(0);
+  // v2.0.5：按 Provider 分桶，避免切换 Provider 后仍显示上一次的"已保存"
+  const [savedTick, setSavedTick] = useState<Record<Provider, number>>({
+    deepseek: 0,
+    openai: 0,
+    glm: 0,
+    custom: 0,
+  });
   const [openingDocs, setOpeningDocs] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
 
@@ -131,12 +150,6 @@ export default function Settings({ installedSkills }: { installedSkills: Install
   const [scanned, setScanned] = useState<ScannedSoftware[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanAt, setScanAt] = useState<Date | null>(null);
-
-  // ==== 已安装 Skills（从 install-complete 事件累加，由 App.tsx 通过 prop 传入） ====
-  // props.installedSkills 已是最终值
-
-  // ==== 全局 install 进度（Web 端走 skillhub:// 唤起助手后，助手跑剧本） ====
-  // 由 App.tsx 顶层维护 + 渲染全局浮窗；本组件不再监听
 
   // 启动时拉数据
   useEffect(() => {
@@ -152,10 +165,13 @@ export default function Settings({ installedSkills }: { installedSkills: Install
         setActiveProvider(status.active as Provider);
         setProviderHasKey(status.providers);
         const anyHasKey = Object.values(status.providers).some(Boolean);
-        const onboarded =
-          typeof window !== 'undefined' &&
-          window.localStorage.getItem('skillhub-helper-onboarded') === '1';
-        if (!anyHasKey && !onboarded) {
+        // v2.0.5：改 7 天可恢复的 dismissUntil 时间戳
+        // 旧版一次性 localStorage 标志→用户一旦跳过就永远失去引导回归路径
+        const dismissedUntilRaw =
+          typeof window !== 'undefined' ? window.localStorage.getItem(DISMISS_KEY) : null;
+        const dismissedUntil = dismissedUntilRaw ? parseInt(dismissedUntilRaw, 10) : 0;
+        const dismissedNow = dismissedUntil > Date.now();
+        if (!anyHasKey && !dismissedNow) {
           setStage('onboarding');
         } else {
           setStage('console');
@@ -168,8 +184,6 @@ export default function Settings({ installedSkills }: { installedSkills: Install
     })();
     // handleScan 是 useCallback，依赖 [scanning]，稳定
   }, []);
-
-  // 监听 install-progress / install-complete —— 已上提到 App.tsx（全局覆盖任何 Tab）
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -205,9 +219,6 @@ export default function Settings({ installedSkills }: { installedSkills: Install
       setScanning(false);
     }
   }, []);
-
-  // 一键安装 Skill（触发 install-progress 事件）—— 仅 Web 端走 skillhub:// 唤起时调
-  // 注意：实际监听和状态维护已在 App.tsx 顶层完成。Settings 里不再做。
 
   const currentProvider = PROVIDERS.find((p) => p.id === activeProvider) ?? PROVIDERS[0];
 
@@ -293,10 +304,11 @@ export default function Settings({ installedSkills }: { installedSkills: Install
       await invoke('save_provider_key', { provider: activeProvider, apiKey: key });
       await invoke('set_active_provider', { provider: activeProvider });
       await refreshStatus();
-      setSavedTick((n) => n + 1);
+      setSavedTick((prev) => ({ ...prev, [activeProvider]: prev[activeProvider] + 1 }));
       setKeyExpanded(false);
+      // v2.0.5：仅清掉 dismissUntil，让已完成配 Key 的用户不再被引导骚扰
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem('skillhub-helper-onboarded', '1');
+        window.localStorage.removeItem(DISMISS_KEY);
       }
       // 如果当前在 onboarding，配完 key 后跳主控台
       if (stage === 'onboarding') {
@@ -336,7 +348,8 @@ export default function Settings({ installedSkills }: { installedSkills: Install
     }
   };
 
-  // ================== Onboarding 全屏引导（4 步） ==================
+  // ================== Onboarding 全屏引导 ==================
+  // v2.0.5：保留全屏体验但允许"7 天可恢复"的暂时忽略
   if (stage === 'onboarding') {
     return (
       <div className="min-h-screen bg-blue-50 px-6 py-10">
@@ -419,25 +432,54 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                   {saveError}
                 </p>
               )}
-              <button
-                onClick={handleSave}
-                disabled={saving || !keys[activeProvider]}
-                className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? '保存中…' : `保存 ${currentProvider.label} Key 并开始扫描 →`}
-              </button>
+              {/* v2.0.5：补 Test 反馈（与主控台一致），避免首次配 Key 盲存验证不生效 */}
+              {testResult?.ok && (
+                <div className="mb-2 flex items-center gap-2 text-xs text-green-700">
+                  <span>✓ Key 有效</span>
+                  {testResult.model && (
+                    <span className="rounded bg-green-100 px-1.5 py-0.5 font-mono text-[11px]">
+                      将使用 model: {testResult.model}
+                    </span>
+                  )}
+                </div>
+              )}
+              {testResult && !testResult.ok && (
+                <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                  ✗ {testResult.error}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={!keys[activeProvider] || testing}
+                  className="w-16 shrink-0 rounded bg-gray-100 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {testing ? '测试中...' : 'Test'}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !keys[activeProvider]}
+                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? '保存中…' : `保存 ${currentProvider.label} Key 并开始扫描 →`}
+                </button>
+              </div>
             </div>
 
             <button
               onClick={() => {
+                // v2.0.5：dismissUntil 时间戳，过期后引导自动重现
                 if (typeof window !== 'undefined') {
-                  window.localStorage.setItem('skillhub-helper-onboarded', '1');
+                  window.localStorage.setItem(
+                    DISMISS_KEY,
+                    String(Date.now() + SEVEN_DAYS_MS),
+                  );
                 }
                 setStage('console');
               }}
               className="w-full text-xs text-gray-500 hover:text-gray-700"
             >
-              稍后再配置 →
+              稍后再配置（7 天内不再提醒）→
             </button>
           </div>
         </div>
@@ -586,14 +628,14 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                   {saveError}
                 </p>
               )}
-              {savedTick > 0 && !saveError && (
+              {savedTick[activeProvider] > 0 && !saveError && (
                 <p className="mt-2 text-xs text-green-700">✓ 已保存到本机</p>
               )}
 
               {providerHasKey[activeProvider] && (
                 <button
                   onClick={handleDelete}
-                  className="mt-3 w-full text-xs text-gray-500 hover:text-red-600 hover:underline"
+                  className="mt-3 w-full text-xs text-red-600 hover:text-red-700 hover:underline"
                 >
                   删除 {currentProvider.label} 的 Key
                 </button>
@@ -663,7 +705,8 @@ export default function Settings({ installedSkills }: { installedSkills: Install
 
           {installedSkills.length === 0 && (
             <div className="text-xs leading-relaxed text-gray-500">
-              还没有装过 Skills。请打开{' '}
+              {/* v2.0.5：移除 skillhub:// 内部协议术语，普通用户不需要知道 */}
+              还没有装过 Skills。请到{' '}
               <a
                 href="https://skillhub.proclaw.cc"
                 onClick={(e) => {
@@ -674,8 +717,7 @@ export default function Settings({ installedSkills }: { installedSkills: Install
               >
                 SkillHub Web 端
               </a>
-              ，在顶部搜索框或首页对话框里输入需求，选好 Skill 后点“一键安装”，
-              Web 端会通过 <code className="font-mono">skillhub://</code> 协议自动唤起本助手执行剧本。
+              {' '}搜索你想做的事，挑好后点「一键安装」即可。
             </div>
           )}
 
@@ -702,30 +744,53 @@ export default function Settings({ installedSkills }: { installedSkills: Install
           )}
         </section>
 
-        {/* ========== Section 4: 关于 ========== */}
+        {/* ========== Section 4: 诊断 / 故障排查 ========== */}
+        {/* v2.0.5：原"关于"Section 改诊断卡片——端口号、协议状态、日志路径
+            （顶部 About Tab 仍保留对外说明，本卡片专注"出了事怎么查"） */}
         <section className="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-1 text-base font-semibold text-gray-900">关于</h2>
-          <p className="text-xs leading-relaxed text-gray-500">
-            本助手是 <strong>执行载体</strong>，不负责浏览/推荐 Skills——那些都在{' '}
-            <a
-              href="https://skillhub.proclaw.cc"
-              onClick={(e) => {
-                e.preventDefault();
-                openUrl('https://skillhub.proclaw.cc');
-              }}
-              className="text-blue-600 hover:underline"
-            >
-              SkillHub Web 端
-            </a>
-            。本助手仅负责：转发 LLM 调用、扫描本机软件、上报清单用于反向推送、执行 Web 端发起的安装剧本。
-            您的 API Key 永远不会上传到服务器。
-            Web 端访问{' '}
+          <h2 className="mb-3 text-base font-semibold text-gray-900">诊断 / 故障排查</h2>
+          <dl className="space-y-2 text-xs text-gray-700">
+            <div className="flex items-center justify-between">
+              <dt className="text-gray-500">本机 HTTP 端口</dt>
+              <dd className="font-mono">
+                {info?.helper_port ?? '…'}{' '}
+                {info?.helper_port && (
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(String(info.helper_port))}
+                    className="ml-1 text-blue-600 hover:underline"
+                    title="复制端口号（Web 端探测助手时使用）"
+                  >
+                    复制
+                  </button>
+                )}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-gray-500">skillhub:// 协议</dt>
+              <dd>
+                {info?.protocol_registered ? (
+                  <span className="text-green-700">✓ 已注册</span>
+                ) : (
+                  <span className="text-amber-700">未注册 · Web 端可能唤不起助手</span>
+                )}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-gray-500">数据目录</dt>
+              <dd className="font-mono text-[11px] text-gray-500">
+                %APPDATA%\skillhub-helper\.data
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+            您的 API Key 永远不会上传到服务器。Web 端访问{' '}
             <button
               type="button"
               onClick={handleOpenWeb}
               className="text-blue-600 hover:underline"
             >
-              https://skillhub.proclaw.cc
+              skillhub.proclaw.cc
             </button>{' '}
             即可连上本助手。
           </p>

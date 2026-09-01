@@ -8,6 +8,7 @@ interface HelperInfo {
   version: string;
   name: string;
   helper_port?: number;
+  protocol_registered?: boolean;
 }
 
 interface KeyStatus {
@@ -38,6 +39,15 @@ interface InstalledSkill {
   jobId: string;
 }
 
+// v2.0.5：失败态独立 state，避免与 success 路径耦合
+// 历史：v2.0.4 中失败任务 setInstallProgress(null) 后无任何 UI 反馈，
+// 用户被误导为"装成功了"，且失败原因彻底丢失。
+interface InstallFailure {
+  jobId: string;
+  skillName: string;
+  error: string;
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('settings');
   const [info, setInfo] = useState<HelperInfo | null>(null);
@@ -45,6 +55,7 @@ export default function App() {
 
   // ===== 全局 install 进度（Web 端走 skillhub:// 唤起助手后，助手跑剧本） =====
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
+  const [installFailure, setInstallFailure] = useState<InstallFailure | null>(null);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
   // jobId → {slug, name, software}（install_skill 调用时登记，install-complete 时回填）
   const pendingInstallRef = useRef<Record<string, { slug: string; name: string; software: string }>>({});
@@ -57,12 +68,17 @@ export default function App() {
     (async () => {
       const { listen } = await import('@tauri-apps/api/event');
       unlistenProgress = await listen<InstallProgress>('install-progress', (e) => {
+        // 收到新一轮进度说明失败态已结算，清掉旧失败浮窗
+        setInstallFailure(null);
         setInstallProgress(e.payload);
       });
       unlistenComplete = await listen<InstallComplete>('install-complete', (e) => {
         setInstallProgress(null);
+        // v2.0.5：顶层统一清理 pendingRef，无论 success / failed
+        const pending = pendingInstallRef.current[e.payload.job_id];
+        delete pendingInstallRef.current[e.payload.job_id];
+
         if (e.payload.result === 'success') {
-          const pending = pendingInstallRef.current[e.payload.job_id];
           if (pending) {
             setInstalledSkills((prev) => [
               ...prev,
@@ -74,8 +90,14 @@ export default function App() {
                 jobId: e.payload.job_id,
               },
             ]);
-            delete pendingInstallRef.current[e.payload.job_id];
           }
+        } else {
+          // v2.0.5：失败路径不再静默吞错——展示独立失败浮窗
+          setInstallFailure({
+            jobId: e.payload.job_id,
+            skillName: pending?.name ?? e.payload.job_id,
+            error: e.payload.error ?? e.payload.message ?? '未知错误',
+          });
         }
       });
     })();
@@ -102,7 +124,12 @@ export default function App() {
         });
         pendingInstallRef.current[jobId] = { slug: skill.slug, name, software };
       } catch (e) {
-        console.error('install_skill 调用失败', e);
+        // v2.0.5：invoke 失败同步弹失败浮窗（之前只在 install-complete 监听里处理）
+        setInstallFailure({
+          jobId: 'invoke-failed',
+          skillName: name,
+          error: typeof e === 'string' ? e : '调起安装失败，请重试',
+        });
       }
     };
   }, []);
@@ -119,8 +146,9 @@ export default function App() {
         if (fn) {
           fn({ slug: e.payload.slug, name: e.payload.name, software: e.payload.software ? [e.payload.software] : [] });
         }
-        // 切到 settings Tab 让用户看到进度
-        setTab('settings');
+        // v2.0.5：仅在当前 Tab ≠ settings 时切，避免破坏用户上下文
+        // （用户在看"关于"Tab 时被强制拽回 Settings 会困惑）
+        setTab((cur) => (cur === 'settings' ? cur : 'settings'));
       });
     })();
     return () => unlisten?.();
@@ -180,6 +208,15 @@ export default function App() {
         <InstallProgressToast
           progress={installProgress}
           pendingName={pendingInstallRef.current[installProgress.job_id]?.name}
+        />
+      )}
+
+      {/* v2.0.5：失败浮窗独立渲染，不依赖 installProgress。
+          解决 v2.0.4 "失败被吞" P0-16 问题。 */}
+      {installFailure && (
+        <InstallFailureToast
+          failure={installFailure}
+          onClose={() => setInstallFailure(null)}
         />
       )}
     </div>
@@ -244,6 +281,77 @@ function InstallProgressToast({
           {msg}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * v2.0.5：失败浮窗（红色 toast），独立于进度浮窗。
+ * 旧版 install-complete 收到 failed 时只 setInstallProgress(null)，用户被误导为"装成功了"。
+ */
+function InstallFailureToast({
+  failure,
+  onClose,
+}: {
+  failure: InstallFailure;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        position: 'fixed',
+        right: 16,
+        bottom: 16,
+        width: 340,
+        padding: 14,
+        background: '#fff',
+        border: '1px solid #fca5a5',
+        borderRadius: 12,
+        boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
+        zIndex: 1000,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#991b1b' }}>
+          ✗ 安装失败 · {failure.skillName}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="关闭"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#6b7280',
+            fontSize: 14,
+            cursor: 'pointer',
+            padding: 0,
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: '#7f1d1d',
+          background: '#fef2f2',
+          padding: 6,
+          borderRadius: 6,
+          fontFamily: 'monospace',
+          wordBreak: 'break-all',
+          maxHeight: 96,
+          overflow: 'auto',
+        }}
+      >
+        {failure.error}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>
+        可去「LLM Key 设置」查看「已安装 Skills」列表，确认是否需要重试。
+      </div>
     </div>
   );
 }

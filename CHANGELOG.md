@@ -24,6 +24,41 @@
 - 部署配置补齐：`next.config.js`（transpilePackages / standalone / node-builtin externals）、`apps/web/vercel.json`（pnpm workspace 命令）、`Dockerfile.web` + `.dockerignore`、`.env.production.example`
 - 根 workspace lockfile 重建（pnpm，306KB 含全部 importers），清理过期嵌套 lockfile
 
+## [2.0.05] - 2026-09-01
+
+### 🖥️ 桌面助手 v2.0.05（helper UX 审计批次）
+
+桌面端用户体验审计后的一次性修复批次，覆盖单实例窗口聚焦、失败反馈、Provider 切换与 Onboarding 引导留存。
+
+### 🐛 修复 (Fixed)
+
+- **单实例唤起焦点丢失**（`apps/helper/src-tauri/src/lib.rs`）：第二次启动 SkillHub Helper 时旧版 `set_focus()` 对最小化窗口无效，唤起后窗口只在任务栏闪一下。补 `unminimize()` + 临时 `set_always_on_top(true)` 300ms 后还原，确保从任务栏唤起能真正抢到焦点。
+- **install 失败被静默吞错**（`apps/helper/src/App.tsx`）：v2.0.4 中 install 任务失败时仅 `setInstallProgress(null)`，用户被误导为「装成功了」，失败原因彻底丢失。v2.0.05 拆分出独立 `installFailure` state + 红色 toast；`invoke` 失败也同步弹失败浮窗（覆盖「调起安装失败」路径）；进度浮窗收到新一轮事件时自动清理旧的失败浮窗，避免堆叠。
+- **切换 Provider 后误显「已保存」**（`apps/helper/src/pages/Settings.tsx`）：原 `savedTick` 是单数 number，切换 Provider 仍显示上一次的「✓ 已保存到本机」。改为 `Record<Provider, number>` 桶结构，按 Provider 隔离提示状态。
+- **Onboarding 一次性跳过即永久失联**（`apps/helper/src/pages/Settings.tsx`）：原 `localStorage` flag 一旦置位就再也唤不回来，错过引导 = 永远不引导。改为 `dismissUntil` 时间戳，7 天后引导自动重现。
+- **Onboarding 表单缺 Test 反馈**：首次配 Key 无 Test 入口，用户盲存到端才报错。新版把 Test 按钮下沉到 onboarding 表单（与主控台一致），保存前可一键验证 Key 有效性。
+- **已装 Skills 空状态文案含内部协议术语**（`apps/helper/src/pages/Settings.tsx`）：原文"在顶部搜索框或首页对话框里输入需求，选好 Skill 后点「一键安装」，Web 端会通过 `skillhub://` 协议自动唤起本助手执行剧本"——`skillhub://` 是内部协议，普通用户不需要知道。改为"请到 SkillHub Web 端搜索你想做的事，挑好后点「一键安装」即可"。
+- **协议唤起时强制抢回 Settings Tab**（`apps/helper/src/App.tsx`）：旧版外部浏览器 `skillhub://...` 唤起助手时，无论用户在哪个 Tab 都强制 `setTab('settings')`，破坏"看 About Tab"的上下文。改为仅在非 settings 时切换。
+
+### ✨ 新增 (Added)
+
+- **Settings Section 4：诊断 / 故障排查卡片**（`apps/helper/src/pages/Settings.tsx`）：原 Section 4 是"关于"页面，与顶部 About Tab 内容重叠且对故障排查没用。改为诊断卡片，展示：
+  - 本机 HTTP 端口号 + 一键复制（Web 端探测助手时使用）
+  - skillhub:// 协议注册状态（已注册 / 未注册 · Web 端可能唤不起助手）
+  - 数据目录路径（`%APPDATA%\skillhub-helper\.data`）
+
+### 🛠️ 工程 (Engineering)
+
+- helper 版本号从 1.0.0 占位 → **2.0.05**（`apps/helper/package.json` / `Cargo.toml` / `tauri.conf.json`），与 commit 信息中的 v2.0.5 系列对齐（之前 3 个文件的 version 字段一直是 1.0.0 占位）
+
+### ⚠️ 已知 deferrals（详见 `.qoder/plans/v2.0.5-followup.md`）
+
+- **PR-4** base_url 持久化（Custom Provider 的 Base URL 重启即丢）— 涉及 KeyStore schema 扩展，单 PR
+- **P0-17** install 进度单数 state 并发覆盖 — 需堆叠 / 队列 UI 重构，单 PR
+- **P1-21** install-from-url payload 缺 `version` / `job_id` — 需前后端协议改造，与 PRD F8 一起
+- **P1-22** 心跳缺 user identity — 需 Web 端 F14 `UserInstalledSoftware` 表 + OIDC session 注入
+- **P2-*** 视觉 / 无障碍 / 日志 polish 10+ 项 — 影响面小，后续 polish 批次合并
+
 ## [3.0.0] - 2026-09-30
 
 ### 🎉 重大更新 - v3.0 GA Release
