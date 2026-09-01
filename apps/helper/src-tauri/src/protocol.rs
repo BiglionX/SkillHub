@@ -4,6 +4,7 @@
 //! Mac：靠 tauri.conf.json 的 bundle 配置（CFBundleURLTypes）
 
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 
@@ -127,16 +128,47 @@ pub fn unregister() -> Result<()> {
 }
 
 /// 检查协议是否已注册
+/// A 轮 #E1：原实现只在 Windows 检查注册表，macOS / Linux 一律返回 false。
+/// 现改为三态：
+///   - `Registered`（Windows 注册表 / macOS Info.plist）
+///   - `AutoRegistered`（macOS 由 tauri.conf.json bundle 注入，runtime 不需手动注册）
+///   - `NotRegistered`（Linux 需 .desktop，但 helper 不去做）
+/// 前台根据这个状态决定 UI 文案。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistrationStatus {
+    Registered,
+    AutoRegistered,
+    NotRegistered,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Unsupported,
+}
+
 pub fn is_registered() -> bool {
+    matches!(registration_status(), RegistrationStatus::Registered | RegistrationStatus::AutoRegistered)
+}
+
+/// A 轮 #E1：返回注册状态而非仅 bool
+pub fn registration_status() -> RegistrationStatus {
     #[cfg(target_os = "windows")]
     {
-        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        hkcu.open_subkey(r"Software\Classes\skillhub\shell\open\command").is_ok()
+        let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
+        match hkcu.open_subkey(r"Software\Classes\skillhub\shell\open\command") {
+            Ok(_) => RegistrationStatus::Registered,
+            Err(_) => RegistrationStatus::NotRegistered,
+        }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        false
+        // macOS 通过 Info.plist 注册，runtime 不可检查；标记为 auto-registered
+        RegistrationStatus::AutoRegistered
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux 需要 .desktop，不自动
+        RegistrationStatus::Unsupported
     }
 }
 

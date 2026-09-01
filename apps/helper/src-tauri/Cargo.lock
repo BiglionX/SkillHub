@@ -3757,7 +3757,7 @@ checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
 name = "skillhub-helper"
-version = "1.0.0"
+version = "2.0.5"
 dependencies = [
  "aes-gcm",
  "anyhow",

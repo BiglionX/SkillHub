@@ -209,6 +209,35 @@ pub fn manual_override(software_tag: &str, path: &str) -> ScannedSoftware {
     }
 }
 
+/// A 轮 #D2：手动添加软件到 manual list（A 轮「手动补位」 UI 调用）
+/// 持久化到 `manual-software.json`，下次 `scan_all` 时 merge 进去。
+pub fn save_manual_software(list: &[(String, String)]) -> anyhow::Result<()> {
+    let path = std::path::PathBuf::from(std::env::var("APPDATA").unwrap_or_default())
+        .join("skillhub-helper")
+        .join(".data")
+        .join("manual-software.json");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let json = serde_json::to_string_pretty(list)?;
+    std::fs::write(&path, json)?;
+    Ok(())
+}
+
+pub fn load_manual_software() -> Vec<(String, String)> {
+    let path = std::path::PathBuf::from(std::env::var("APPDATA").unwrap_or_default())
+        .join("skillhub-helper")
+        .join(".data")
+        .join("manual-software.json");
+    if !path.exists() {
+        return Vec::new();
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Vec<(String, String)>>(&raw).ok())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

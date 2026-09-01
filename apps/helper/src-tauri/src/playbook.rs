@@ -26,6 +26,12 @@ pub struct Playbook {
 pub enum PreflightStep {
     Detect { detect: String },
     EnsureDiskSpace { ensure_disk_space: String },
+    /// A 轮 #D3：预先检查依赖命令是否存在（如 python / npm / node）
+    /// 失败时返回 `install_hint` 让前端展示「需要安装 X 才能继续」。
+    RequireCommand {
+        require_command: String,
+        install_hint: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +190,26 @@ async fn execute_preflight(step: &PreflightStep, _ctx: &ExecutionContext) -> Res
                 return Err(anyhow!("磁盘空间不足：需要 {}MB，可用 {}MB", required_mb, available));
             }
             Ok(())
+        }
+        PreflightStep::RequireCommand { require_command, install_hint } => {
+            // A 轮 #D3：检查命令是否在 PATH 中。
+            // 使用 `where`（Windows）/ `which`（Unix）查询命令存在性。
+            #[cfg(target_os = "windows")]
+            let probe_result = std::process::Command::new("where")
+                .arg(require_command)
+                .output();
+            #[cfg(not(target_os = "windows"))]
+            let probe_result = std::process::Command::new("which")
+                .arg(require_command)
+                .output();
+            match probe_result {
+                Ok(out) if out.status.success() => Ok(()),
+                _ => Err(anyhow!(
+                    "依赖命令 {} 不存在：{}",
+                    require_command,
+                    install_hint
+                )),
+            }
         }
     }
 }

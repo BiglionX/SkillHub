@@ -31,6 +31,9 @@ interface HelperInfo {
   name: string;
   helper_port?: number;
   protocol_registered?: boolean;
+  /// A 轮修复 #A1：key_store 数据目录是否 fallback 到临时目录（true=数据不会持久化）
+  key_store_fallback?: boolean;
+  key_store_fallback_reason?: string | null;
 }
 
 type Provider = 'deepseek' | 'openai' | 'glm' | 'custom';
@@ -78,7 +81,7 @@ const PROVIDERS: ProviderSpec[] = [
   },
 ];
 
-type Stage = 'onboarding' | 'console';
+type Stage = 'onboarding' | 'console' | 'error'; // A 轮 #A1：加 'error' 表示无法读取本机 Key 状态
 
 interface TestResult {
   ok: boolean;
@@ -112,9 +115,43 @@ interface InstalledSkill {
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const DISMISS_KEY = 'skillhub-helper-dismissed-until';
 
-export default function Settings({ installedSkills }: { installedSkills: InstalledSkill[] }) {
+// A 轮 #G2：相对时间格式。把“2026/8/15 14:30:25”这类绝对时间改成
+// “刚刚 / 3 分钟前 / 2 小时前 / 昨天 / 3 天前 / 2026/8/15”这种人性化格式。
+// 超过 7 天才退回绝对日期；title 提供绝对时间。
+function formatRelative(date: Date): { text: string; title: string } {
+  const now = Date.now();
+  const ts = date.getTime();
+  const diff = now - ts;
+  const absTitle = date.toLocaleString('zh-CN');
+  if (Number.isNaN(ts)) return { text: '未知时间', title: absTitle };
+  if (diff < 0) return { text: '刚刚', title: absTitle }; // 未来时间（时钟不准）走刚刚
+  const sec = Math.floor(diff / 1000);
+  if (sec < 45) return { text: '刚刚', title: absTitle };
+  const min = Math.floor(sec / 60);
+  if (min < 60) return { text: `${min} 分钟前`, title: absTitle };
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { text: `${hr} 小时前`, title: absTitle };
+  const day = Math.floor(hr / 24);
+  if (day === 1) return { text: '昨天', title: absTitle };
+  if (day < 7) return { text: `${day} 天前`, title: absTitle };
+  // 7 天以上退回绝对日期（包含年份）
+  return {
+    text: `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`,
+    title: absTitle,
+  };
+}
+
+export default function Settings({
+  installedSkills,
+  onUninstallSkill,
+}: {
+  installedSkills: InstalledSkill[];
+  onUninstallSkill?: (slug: string) => void;
+}) {
   const [info, setInfo] = useState<HelperInfo | null>(null);
   const [stage, setStage] = useState<Stage>('console'); // useEffect 内覆盖
+  // A 轮 #A1：启动 KeyStore 错误信息
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ==== LLM Key ====
   const [keyExpanded, setKeyExpanded] = useState(false);
@@ -132,6 +169,8 @@ export default function Settings({ installedSkills }: { installedSkills: Install
     custom: '',
   });
   const [customBaseUrl, setCustomBaseUrl] = useState('');
+  // A 轮 #PR-4：startup 时拉所有 Provider 的 base_url 回填
+  const [baseUrls, setBaseUrls] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saving, setSaving] = useState(false);
@@ -160,6 +199,15 @@ export default function Settings({ installedSkills }: { installedSkills: Install
       } catch {
         /* ignore */
       }
+      // A 轮 #PR-4：拉 base_url 映射 — 主要给 custom provider 在启动时回填
+      try {
+        const urls = await invoke<Record<string, string>>('get_all_provider_base_urls');
+        setBaseUrls(urls ?? {});
+        const custom = urls?.['custom'] ?? '';
+        if (custom) setCustomBaseUrl(custom);
+      } catch {
+        /* ignore */
+      }
       try {
         const status = await invoke<KeyStatus>('get_provider_keys_status');
         setActiveProvider(status.active as Provider);
@@ -176,8 +224,12 @@ export default function Settings({ installedSkills }: { installedSkills: Install
         } else {
           setStage('console');
         }
-      } catch {
-        setStage('console');
+      } catch (e) {
+        // A 轮修复 #A1：原代码静默 `setStage('console')`，与 v2.0.5「失败不能被吞」相违背。
+        // 新增 `stage='error'`：明确告知无法读取本机 Key 状态。
+        setLoadError(typeof e === 'string' ? e : '未知错误');
+        setStage('error');
+        return; // 不再跳到 console、不进 onboarding
       }
       // 自动扫一次
       await handleScan();
@@ -204,6 +256,13 @@ export default function Settings({ installedSkills }: { installedSkills: Install
   useEffect(() => {
     setOpeningDocs(false);
     setDocsError(null);
+  }, [activeProvider]);
+
+  // A 轮 #PR-4：切到 custom provider 时回填上次的 base_url（避免每次重输）
+  useEffect(() => {
+    if (activeProvider === 'custom' && baseUrls['custom']) {
+      setCustomBaseUrl(baseUrls['custom']);
+    }
   }, [activeProvider]);
 
   // 扫描本机软件
@@ -271,7 +330,9 @@ export default function Settings({ installedSkills }: { installedSkills: Install
         if (reason === 'provider_error' || /401|403|invalid|unauthor/i.test(raw)) {
           hint = 'Key 不正确或已过期，请到对应平台重新生成';
         } else if (/timeout|network|fetch|connect/i.test(raw)) {
-          hint = '网络不通，请检查代理 / 防火墙';
+          // A 轮 #B1：细化网络错误提示，针对代理 / VPN 场景
+          hint =
+            '网络不通。常见原因：① 公司网络 / VPN 下需要配置 HTTP_PROXY 环境变量 ② 防火墙/代理拦截 ③ 临时离网';
         } else if (activeProvider === 'custom' && /base_url|404/i.test(raw)) {
           hint = 'Base URL 不正确，请检查服务地址';
         }
@@ -302,6 +363,19 @@ export default function Settings({ installedSkills }: { installedSkills: Install
     setSaveError(null);
     try {
       await invoke('save_provider_key', { provider: activeProvider, apiKey: key });
+      // A 轮 #PR-4：custom provider 时一并持久化 base_url
+      if (activeProvider === 'custom' && customBaseUrl.trim()) {
+        try {
+          await invoke('save_provider_base_url', {
+            provider: activeProvider,
+            baseUrl: customBaseUrl.trim(),
+          });
+          setBaseUrls((prev) => ({ ...prev, [activeProvider]: customBaseUrl.trim() }));
+        } catch (e) {
+          // base_url 保存失败但 Key 已存——给出警告但不阻塞
+          console.warn('save_provider_base_url failed', e);
+        }
+      }
       await invoke('set_active_provider', { provider: activeProvider });
       await refreshStatus();
       setSavedTick((prev) => ({ ...prev, [activeProvider]: prev[activeProvider] + 1 }));
@@ -375,14 +449,25 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">2</span>
                 <div>
                   <div className="font-medium text-gray-900">扫描本机软件</div>
-                  <div className="text-xs text-gray-500">检测你装了 Photoshop / VSCode / Blender 等</div>
+                  <div className="text-xs text-gray-500">
+                    保存 Key 后自动触发 · 检测你装了哪些 Photoshop / VSCode / Blender 等
+                  </div>
                 </div>
               </li>
               <li className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">3</span>
                 <div>
                   <div className="font-medium text-gray-900">去 Web 端找 Skills</div>
-                  <div className="text-xs text-gray-500">桌面端不负责推荐/选择，到 skillhub.proclaw.cc 用对话框描述需求</div>
+                  <div className="mb-2 text-xs text-gray-500">
+                    桌面端不负责推荐/选择，到 skillhub.proclaw.cc 用对话框描述需求
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenWeb()}
+                    className="rounded border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                  >
+                    打开 Web 端 →
+                  </button>
                 </div>
               </li>
             </ol>
@@ -452,35 +537,74 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                 <button
                   onClick={handleTest}
                   disabled={!keys[activeProvider] || testing}
-                  className="w-16 shrink-0 rounded bg-gray-100 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                  className="w-16 shrink-0 rounded bg-gray-100 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
-                  {testing ? '测试中...' : 'Test'}
+                  {testing ? '测试中…' : 'Test'}
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !keys[activeProvider]}
-                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
                   {saving ? '保存中…' : `保存 ${currentProvider.label} Key 并开始扫描 →`}
                 </button>
               </div>
             </div>
 
+            {/* A 轮修复 #A4：dismiss 按钮层级与文案
+                原：「稍后再配置（7 天内不再提醒）→」 — 括号里 7 天让人误以为是"7 天后回来"。
+                文案改明确表达"7 天后再提醒"语义。同时去掉「→」避免被误读为链接，
+                改成中性文本按钮，而不是接近主表单的层次。 */}
+            <div className="mt-2 border-t border-gray-200 pt-4 text-center">
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.localStorage.setItem(
+                      DISMISS_KEY,
+                      String(Date.now() + SEVEN_DAYS_MS),
+                    );
+                  }
+                  setStage('console');
+                }}
+                className="text-xs text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded px-2 py-1"
+              >
+                我稍后再配（7 天后再提醒）
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ================== 启动错误态 (A 轮 #A1) ==================
+  if (stage === 'error') {
+    return (
+      <div className="min-h-screen bg-red-50 px-6 py-10">
+        <div className="mx-auto max-w-xl">
+          <div className="rounded-xl border border-red-200 bg-white p-8 shadow-sm">
+            <div className="mb-4 text-5xl">{"\u26A0\uFE0F"}</div>
+            <h1 className="mb-2 text-2xl font-bold text-gray-900">无法读取本机配置</h1>
+            <p className="mb-4 text-sm leading-relaxed text-gray-600">
+              助手启动时无法读取你的 LLM Key 配置。可能原因：数据目录无写权限、
+              配置文件损坏、防病毒软件拦截。
+            </p>
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <div className="mb-1 font-semibold">错误详情</div>
+              <code className="break-all">{loadError ?? '未知错误'}</code>
+            </div>
+            <p className="mb-4 text-xs text-gray-500">
+              预期路径：<code className="font-mono">%APPDATA%\skillhub-helper\.data\llm-keys.json</code>
+            </p>
             <button
-              onClick={() => {
-                // v2.0.5：dismissUntil 时间戳，过期后引导自动重现
-                if (typeof window !== 'undefined') {
-                  window.localStorage.setItem(
-                    DISMISS_KEY,
-                    String(Date.now() + SEVEN_DAYS_MS),
-                  );
-                }
-                setStage('console');
-              }}
-              className="w-full text-xs text-gray-500 hover:text-gray-700"
+              onClick={() => window.location.reload()}
+              className="w-full rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
             >
-              稍后再配置（7 天内不再提醒）→
+              重试
             </button>
+            <p className="mt-3 text-center text-xs text-gray-500">
+              如重复出现，请尝试重启电脑 / 重新安装助手。
+            </p>
           </div>
         </div>
       </div>
@@ -593,9 +717,9 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                 <button
                   onClick={handleTest}
                   disabled={!keys[activeProvider] || testing}
-                  className="w-16 shrink-0 rounded bg-gray-100 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                  className="w-16 shrink-0 rounded bg-gray-100 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
-                  {testing ? '测试中...' : 'Test'}
+                  {testing ? '测试中…' : 'Test'}
                 </button>
               </div>
 
@@ -665,8 +789,9 @@ export default function Settings({ installedSkills }: { installedSkills: Install
           </div>
 
           {scanAt && (
-            <p className="mb-2 text-xs text-gray-500">
-              上次扫描：{scanAt.toLocaleTimeString('zh-CN')} · 检测到 {scanned.length} 个
+            // A 轮 #G2：上次扫描时间也走相对时间格式
+            <p className="mb-2 text-xs text-gray-500" title={formatRelative(scanAt).title}>
+              上次扫描：{formatRelative(scanAt).text} · 检测到 {scanned.length} 个
             </p>
           )}
 
@@ -724,7 +849,7 @@ export default function Settings({ installedSkills }: { installedSkills: Install
           {installedSkills.length > 0 && (
             <ul className="divide-y divide-gray-100">
               {installedSkills.slice().reverse().map((s) => (
-                <li key={s.jobId} className="flex items-center justify-between py-2">
+                <li key={s.slug} className="flex items-center justify-between py-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-green-600">✓</span>
@@ -733,11 +858,36 @@ export default function Settings({ installedSkills }: { installedSkills: Install
                         {s.software}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-gray-500">
-                      {s.installedAt.toLocaleString('zh-CN')} ·{' '}
+                    {/* A 轮 #G2：相对时间 + title 给绝对时间。 */}
+                    <p className="mt-0.5 text-[11px] text-gray-500" title={formatRelative(s.installedAt).title}>
+                      {formatRelative(s.installedAt).text} ·{' '}
                       <span className="font-mono">{s.slug}</span>
                     </p>
                   </div>
+                  {/* A 轮 #B3：A 轮修复 #B3 补「卸载」入口。点击调 invoke('uninstall_skill')，
+                      并通知父组件从 jobs 中移除。MVP 为软卸载——返回 manual_steps 提示手动从目标软件卸。 */}
+                  {onUninstallSkill && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = window.confirm(
+                          `从已装列表移除「${s.name}」？\n\n（当前为软卸载，如需从 ${s.software} 中完全移除插件请在软件内手动操作）`,
+                        );
+                        if (!ok) return;
+                        try {
+                          await invoke('uninstall_skill', { slug: s.slug, skill: s });
+                        } catch (e) {
+                          // 即使 invoke 失败也通知 AppJobsBridge 移除显示——MVP 是软卸载，不阻塞 UX
+                          console.warn('uninstall_skill invoke failed', e);
+                        }
+                        onUninstallSkill(s.slug);
+                      }}
+                      aria-label={`卸载 ${s.name}，从已装列表移除`}
+                      className="ml-2 shrink-0 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                    >
+                      卸载
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
