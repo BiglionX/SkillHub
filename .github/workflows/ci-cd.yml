@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop, master]
+    branches: [main, develop, master, clean-master]
   pull_request:
-    branches: [main, develop, master]
+    branches: [main, develop, master, clean-master]
 
 jobs:
   # 单元测试和集成测试
