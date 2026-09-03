@@ -7,6 +7,91 @@
 
 ## [Unreleased]
 
+### 🖥️ 桌面助手 M4 用量看板（v2.0.5，2026-09）
+
+本批完成 PRD v2.1 §14.4 M4 里程碑「桌面端主客户端化」 + 「用量 Dashboard」全闭环，作为桌面端从「协议唤起器 + Key 保险箱 + 扫描仪」升级为「主客户端」的**首个工程交付物**。**桌面端 Tab 体系 2 Tab → 5 Tab**：home / explore / my / usage / settings。
+
+### ✨ 新增 (Added)
+
+#### 桌面端后端（apps/helper/src-tauri/）
+
+- **`usage_store.rs` 本地用量 SQLite 存储**（596 行）：
+  - 12 字段表：`client_record_id` / `created_at_ms` / `skill_slug` / `provider_id` / `model` / `tokens_in` / `tokens_out` / `duration_ms` / `cost_estimate` / `source` / `session_kind` / `session_id`
+  - 幂等：`client_record_id` PRIMARY KEY + `INSERT OR IGNORE`，同 key 重复写仅保留首次
+  - 汇总：`summarize(range)` 按 Skill/Provider/每日三维聚合（`range` = "today" / "7d" / "30d"）
+  - 清理：`prune_older_than(90)` 90 天滚动清理 + `PRAGMA wal_checkpoint(TRUNCATE)`
+  - 导出：`export_csv(path)` UTF-8 BOM + Excel 友好格式（ISO8601 时间 + escape）
+  - Fallback：主路径（`%APPDATA%\skillhub-helper\.data\usage.db`）不可写时自动 fallback 到 `std::env::temp_dir()`，与 KeyStore 一致语义
+  - 单元测试：`record_is_idempotent` / `summarize_groups_correctly` / `prune_older_than` / `export_csv` 4 个 case 覆盖（需 `cargo test` 实跑）
+
+- **`llm_proxy.rs` 注入 UsageStore**：
+  - `LlmProxyState` 加 `usage_store: Arc<UsageStore>` 字段
+  - `ChatBody` 加 3 个可选字段：`client_record_id`（幂等键）、`session_id`（用户/匿名标识）、`skill_slug`（按 Skill 拆分汇总）
+  - `ChatOk` 加 3 个可选响应字段：`tokens_in` / `tokens_out` / `record_id`
+  - `/llm/chat` 调用成功后调 `usage_store.record()`，失败重试不会重复入库
+  - 新增路由：`/llm/usage/summary`（GET，返回 `UsageSummary`） + `/llm/usage/sync`（POST，桌面端与云端同步对账）
+
+- **`lib.rs` 注册 6 个新 invoke 命令**：
+  - `record_usage(rec: UsageRecordInput)` —— 手动记账接口，供 `<NluSearchBox>` 在 `/llm/chat` 调用后调
+  - `get_local_usage_summary(range: Option<String>)` —— Usage Tab 在未登录态也可读本机数据
+  - `export_usage_csv(path: String)` —— Settings 页「导出」按钮
+  - `prune_local_usage(days: Option<u32>)` —— 手动清理，默认 90 天
+  - `ensure_guest_session()` —— 返回 `{anonymous_id, machine_fingerprint}`，前端存 localStorage
+  - `get_recommended_for_local_software(installed, limit)` —— `fetch_recommended_skills` 的语义化别名（PRD §14.4 §14-7），内部转发以兼容旧调用
+
+- **`Cargo.toml` 新增依赖**：`rusqlite`（bundled）、`uuid`（v4 生成）、`machine-uid`、`once_cell`、`parking_lot`（可选优化）
+
+#### 桌面端前端（apps/helper/src/）
+
+- **5-Tab 体系**（`App.tsx`）：`home` / `explore` / `my` / `usage` / `settings`；顶栏右侧始终显示 LLM Key 状态徽章 + 登录徽章
+- **新增页面**：`pages/Home.tsx`（NLU 搜索 + 为你推荐） / `pages/Explore.tsx`（顶部软件过滤 + Skill 列表） / `pages/MySkills.tsx`（已装 Skills + 卸载） / `pages/Usage.tsx`（用量 Dashboard）
+- **新增组件**：`components/NluSearchBox.tsx`（智能问答输入） / `components/ProviderPriceBadge.tsx`（模型单价徽章） / `components/SkillCard.tsx`（Skill 卡片） / `components/UsageDashboard.tsx`（Usage 页面图表）
+- **新增 lib/**：封装 `tauriInvoke` / `ensureGuestSession` / `formatCost` 等辅助函数
+- **Settings 页扩展**：保留 LLM Key + 本机软件 + 诊断 + 关于，新增「导出用量 CSV」按钮 + 「手动清理 N 天前记录」入口
+
+#### Web 端后端（apps/web/app/api/v2/）
+
+- **`/api/v2/provider-pricing` GET**（公开）：返回 `[{provider, model, inputPer1k, outputPer1k, currency, effectiveAt}]`，按 `effectiveAt DESC` 取最新单价；Upstash Redis 1h 缓存
+- **`/api/v2/usage/sync` POST**（匿名/登录均可）：Body 含 `anonymous_id` / `machine_fingerprint` / `helper_version` / `os_version` + `records[]`；幂等去重 `client_record_id in (...)` + `createMany skipDuplicates`；服务端按 `ProviderPricing` 回填 `costCny`；限 1000 条/次
+- **`/api/v2/user/usage` GET**（登录）：query `range=7d|30d|today` + `userId` from session；返回 4 维度聚合 —— `byDay`（`DATE_TRUNC('day', occurredAt)` 原生 SQL + groupBy）、`byProvider`（groupBy provider）、`bySkill` Top 10（groupBy skillSlug，null 归到「未关联」）、`totals`（总调用/总 token/总成本）
+- **`/api/v2/auth/bind-guest` POST**：Body `{anonymous_id, merge_records: true}`；upsert `GuestSession` + 回填 `userId` + 默认合并该匿名会话的所有 `UsageRecord` 到当前用户
+
+#### Web 端数据库（apps/web/prisma/）
+
+- **`schema.prisma` 新增 3 张表 + User 2 反关联**：
+  - `ProviderPricing`：cuid PK + `(provider, model, effectiveAt DESC)` 复合索引 + `Decimal(10, 6)` 单价精度
+  - `GuestSession`：`anonymousId` @unique + `machineFingerprint?` + `userId?` 反向（onDelete SetNull）+ `bindAt?` + 3 索引
+  - `UsageRecord`：`guestSessionId?` + `userId?`（两者至少一非空）+ `skillSlug?` + `clientRecordId?` @unique + 5 索引（userId+occurredAt / guestSessionId+occurredAt / skillSlug / provider / occurredAt）
+- **migration SQL**（`prisma/migrations/20260903_add_usage_and_pricing/migration.sql`）：CREATE TABLE × 3 + CREATE INDEX × N + 6 条种子单价（DeepSeek V3 / OpenAI GPT-4o-mini / 智谱 GLM-4-Flash / Anthropic Claude-3-Haiku / Moonshot Kimi 等主流模型）
+- **`scripts/seed-m4-pricing.ts`**：13 条主流模型人民币单价完整种子脚本，供人工 `pnpm tsx scripts/seed-m4-pricing.ts` 调用（与 migration 的 6 条为子集关系）
+
+#### Web 端前端（apps/web/app/）
+
+- **`/dashboard/usage` 页面**（`app/dashboard/usage/page.tsx` + 子组件）：
+  - 4 个指标卡：调用次数 / Input tokens / Output tokens / 估算成本（人民币）
+  - 4 个图表（recharts）：每日 Tokens Area / 每日调用 Bar / Provider 占比 Pie / 每日成本 Line
+  - Top 10 Skill 表（按调用次数降序）
+  - 隐私说明（90 天自动清理 + 仅本机可见）
+  - 时间范围切换：today / 7d / 30d
+- **首页分支**（`app/page.tsx`）：已登录用户自动 `redirect('/dashboard/usage')`，未登录保留 `/skills`
+- **`/dashboard` 导航**（`app/dashboard/layout.tsx`）：新增「用量」链接
+- **`/skills` 导航**（`app/skills/PublicSkillsClient.tsx`）：已登录用户在顶部 nav 加「用量」链接（带条形图 SVG 图标）
+
+#### 文档与约定
+
+- **`docs/features/HELPER_USAGE_DASHBOARD.md`**（新建）：v0.2 含 §11 实施同步（6 子节），详述桌面端 SQLite 实测 + 云端 Prisma 字段差异 + Web API 完整契约
+- **`docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md`**：v2.0 → v2.1（§5.3 桌面端主客户端化新边界替换 v2.0 §5.2 红线 + F16-F20 五个新功能需求）
+- **`apps/helper/README.md`**：v2.0 → v2.1（职责重写 + 5-Tab 体系表 + 资源约束 + 目录结构更新）
+- **`AGENTS.md` §8 第 10 项**：M4 启动 → M4 已落地（详述桌面端 + Web 端落地 + 资源约束）
+- **`AGENTS.md` §8 第 11 项**（新）：Prisma 5.22 + pnpm virtual store 类型 stale + `(prisma as any)` 绕过模式
+- **`AGENTS.md` §8 第 12 项**（新）：桌面端 50 次/天游客强制限流未在 Rust 层落地（M5 deferral）
+
+### 🛠️ 工程与维护 (Engineering)
+
+- 桌面端 `package.json` 新增依赖：`recharts@^2.12.7`、`@tauri-apps/plugin-opener@^2.5.4`（v2.0.4 引入）、`lucide-react@^0.469.0`
+- pnpm-lock.yaml 同步更新（recharts + 传递依赖约 15 个新条目）
+- 验证：apps/web `tsc --noEmit` EXIT 0 ✅ / apps/helper `tsc --noEmit` EXIT 0 ✅ / `prisma validate` schema valid 🚀
+
 ### 🔧 修复 (Fixed)
 
 - 测试基建（`apps/web/jest.setup.ts`）：

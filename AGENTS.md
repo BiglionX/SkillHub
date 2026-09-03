@@ -112,6 +112,14 @@ my-skill/
    - **Vercel 已实跑（2026-08）并修复三处**：① `apps/web/vercel.json` 的 `buildCommand` 需先构建 workspace 依赖再构建 web（`pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/skill-validator build && pnpm --filter @skillhub/web run build`），否则全新 checkout 缺 `dist/` 报 `Can't resolve '@skillhub/widget'/'@skillhub/search-sdk'`；② `packages/widget` devDeps 的 `@types/react` 从 ^18 对齐到 ^19（+`@types/react-dom`），否则 tsup `--dts` 因 @types/react 18/19 双版本冲突报 TS2786；③ **Edge Function 修复**：`next.config.js` 的 node 内建模块 externals 必须限定 `nextRuntime === 'nodejs'`（否则 middleware Edge bundle 引用 `path/fs/crypto/os` 等被 Vercel 拒绝），且 `instrumentation.ts` 必须 Edge 安全——Next 15 会把它同时编译进 Edge 运行时，任何静态引入的 Node 内建模块（path/dotenv/调度器等）都要移入 `NEXT_RUNTIME === 'nodejs'` 守卫 + 动态导入。
 8. **仓库外的流浪 lockfile**：`D:\BigLionX\package-lock.json`（633KB，仓库上一级目录）会干扰 Next 根目录探测——已用 `outputFileTracingRoot` 屏蔽，建议手动删除该文件。
 9. **apps/helper 已接入 `tauri-plugin-opener`（2026-08）**：LLM Key 设置页的"获取 Key →"原是 `<a target="_blank">`，在 Tauri 2 WebView 里不会自动跳转默认浏览器。修复后走 `tauri-plugin-opener::openUrl()` 走系统 shell。**ACL 严格收紧**：`apps/helper/src-tauri/capabilities/default.json` 仅放行三个 Provider 文档域名（`platform.deepseek.com`、`platform.openai.com`、`open.bigmodel.cn`，glob `*`），非白名单 URL 在 Rust 层被拦截——前端被注入也只能量开白名单域名。新增 Provider 时务必同步更新该文件。
+10. **桌面端升级为「主客户端」并完成 M4 用量看板（2026-09，v2.0.5 已落地）**：v2.1 PRD ([docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md §5.3](docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)) 正式把桌面端从「协议唤起器 + Key 保险箱 + 扫描仪」定位升级为「主客户端」，覆盖 A/B/C 三类全闭环。**Tab 体系从 2 Tab 升级为 5 Tab**（[App.tsx:15](apps/helper/src/App.tsx#L15)）：`home` / `explore` / `my` / `usage` / `settings`（详见 [§10](#10-对-ai-代理的工作指引)）。
+  - **桌面端落地**（apps/helper）：`usage_store.rs`（SQLite 本地用量记账 + 90 天滚动清理 + CSV 导出 + 幂等 `client_record_id`）、`llm_proxy.rs` 注入 `UsageStore` + 6 个新 invoke（`record_usage` / `get_local_usage_summary` / `export_usage_csv` / `prune_local_usage` / `ensure_guest_session` / `get_recommended_for_local_software`）+ ChatBody 加 M4 字段（`client_record_id` / `session_id` / `skill_slug`）+ 5 Tab 前端（`Home` / `Explore` / `MySkills` / `Usage` / `Settings`）+ `<NluSearchBox>` / `<ProviderPriceBadge>` / `<SkillCard>` / `<UsageDashboard>` 4 个组件。
+  - **Web 端落地**（apps/web）：`GuestSession` / `UsageRecord` / `ProviderPricing` 三张 Prisma 表 + User 2 反关联 + migration SQL（20260903）+ 4 条 API（`/api/v2/provider-pricing` 公开 GET + Redis 1h 缓存 / `/api/v2/usage/sync` POST 幂等同步 + 成本回填 / `/api/v2/user/usage` GET 聚合 + `DATE_TRUNC` 原生 SQL / `/api/v2/auth/bind-guest` POST 合并匿名 → 用户）+ `/dashboard/usage` 页面（4 指标卡 + 4 图 + Top 10 表 + 隐私说明）+ 首页分支（已登录→`/dashboard/usage`，未登录→`/skills`）+ `/skills` nav 加「用量」链接。
+  - **资源约束**随之提高：助手内存 ≤ 80MB（空闲）、安装包 ≤ 8MB、冷启动 ≤ 1500ms（均含 React.lazy 拆分页面）。
+  - **Web 端首页降级为「下载助手」，原 NLU 入口保留到 `/skills` 子路径 + canonical tag**。
+  - 设计文档：[HELPER_USAGE_DASHBOARD.md](docs/features/HELPER_USAGE_DASHBOARD.md)（v0.2 含实施同步 §11）；PRD：[ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md §14.4 M4 里程碑](docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)；改造计划总纲：[`.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md`](.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md)；实施记录：[`.qoder/plans/M4_桌面端主客户端实施_aac15783.md`](.qoder/plans/M4_桌面端主客户端实施_aac15783.md)。
+11. **Prisma 5.22 + pnpm virtual store 类型 stale（2026-09，M4 经验）**：新加 `prisma` 模型后，`pnpm exec tsc --noEmit -p apps/web/tsconfig.json` 会报「类型 `PrismaClient` 上不存在属性 `xxx`」——Prisma generator 输出在 pnpm virtual store（`.pnpm-store`），TS 类型解析时找不到。**绕过模式**：跟现有 `userInstalledSoftware` 一样，用 `(prisma as any).xxxModel as any` 强制断言（已在 `apps/web/app/api/v2/usage/sync/route.ts`、`provider-pricing/route.ts`、`auth/bind-guest/route.ts`、`user/usage/route.ts`、`scripts/seed-m4-pricing.ts` 5 处统一）。**正确解决**：在 CI 容器内跑 `pnpm exec prisma generate`，确保 `.prisma/client` 目录生成后再 typecheck。M4 期间 `prisma validate` 通过、`tsc --noEmit` 退出 0，但未实跑 `prisma generate` + 真实数据库连接，待 Vercel 部署时验证。
+12. **桌面端 50 次/天游客强制限流未在 Rust 层落地（2026-09，M4 deferral）**：`HELPER_USAGE_DASHBOARD.md §6.2` 规定的"游客每天 50 次 LLM 调用"上限，目前仅文档+ Web 端 `bind-guest` 路由判断；`apps/helper/src-tauri/src/usage_store.rs` 未加 `count_today_guest()` 调用拦截。**M5 补**：在 `UsageStore::count_today_guest()` 已留方法，待 `llm_proxy::handle_chat` 入口接入。详见 [HELPER_USAGE_DASHBOARD.md §6.2](docs/features/HELPER_USAGE_DASHBOARD.md)。
 
 ## 9. 版本号规则（2026-08 落地）
 
@@ -142,3 +150,23 @@ python scripts/bump-version.py --file apps/helper/package.json --set 0.3.05     
 - 跨文件重构 / 审计 / 批量任务：使用 harness 的 subagent / workflow 能力并行拆分，主代理只做整合与验收
 - 涉及技能包格式、审核流程、支付、多租户的改动，先读 `docs/plans/SKILLHUB_DEVELOPMENT_PLAN_V2.md` 与 `docs/features/DUAL_MODE_ARCHITECTURE.md`
 - 遇到与本节"已知问题"冲突的行为，以本节为准并记录偏差
+
+### 10.1 【v2.1 新增】桌面端 5-Tab 体系（2026-09）
+
+`apps/helper/src/App.tsx` 入口的 `Tab` 联合类型与功能：
+
+| Tab | 路由 | 内容 | 主要组件（计划新增） | 关联 PRD |
+|---|---|---|---|---|
+| **home** | `tab=home` | NLU 搜索框 + 「为你推荐」面板 | `<HomePage>` / `<NluSearchBox>` / `<RecommendedForYou>` | F16 / F17 |
+| **explore** | `tab=explore` | 顶部软件过滤 + Skill 列表 | `<ExplorePage>` / `<SoftwareIconBar>` / `<SkillCard>` | F16 |
+| **my** | `tab=my` | 已装 Skills 列表 + 用量小卡 + 卸载 | `<MySkillsPage>` / `<InstalledSkillItem>` / `<UsageMiniCard>` | F16 / F18 |
+| **usage** | `tab=usage` | 用量 Dashboard（日/周/月 + 按 Skill + 按 Provider + 估算费用 + 导出 CSV） | `<UsagePage>` / `<UsageDashboard>` | F16 / F18 |
+| **settings** | `tab=settings` | LLM Key + 本机软件 + 诊断 + 关于（保留现有，扩展） | `<Settings>` | — |
+
+**顶栏右侧徽章**（始终可见）：
+- LLM Key 状态徽章（已就绪 / 未配置 → 未配 Key 时点 C 类 Skill 高亮引导）
+- 登录徽章（已绑定 Web 账号 / 游客 → 游客用满 50 次后弹注册引导）
+
+**键盘导航**：Home / End 在 Tab 间跳，← → 在 Tab 内焦点移动，Enter 触发。
+
+> 涉及桌面端改动前先读 PRD [§5.3](docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md) 红线修正 + [§14.4 M4 里程碑](docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md) + [HELPER_USAGE_DASHBOARD.md](docs/features/HELPER_USAGE_DASHBOARD.md)。

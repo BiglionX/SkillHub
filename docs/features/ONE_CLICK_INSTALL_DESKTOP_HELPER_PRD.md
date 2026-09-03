@@ -1,10 +1,11 @@
-# SkillHub 一键安装桌面助手 — 需求文档（PRD）v2.0
+# SkillHub 一键安装桌面助手 — 需求文档（PRD）v2.1
 
-> **文档版本**: v2.0（重写）
-> **创建日期**: 2026-08（基于 v1.0 反馈重写）
+> **文档版本**: v2.1（M4 桌面端主客户端化改造，2026-09）
+> **创建日期**: v2.0（2026-08）/ v2.1（2026-09）
 > **目标版本**: SkillHub v3.x
 > **状态**: 待产品/技术负责人审核
-> **前置版本**: [v1.0](./ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)（已归档，仅供参考）
+> **前置版本**: [v2.0](./ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)（v2.0 已在 §5.2 把桌面端红线定为「协议唤起器 + Key 保险箱 + 扫描仪」，v2.1 修正为「主客户端」）
+> **本次重大变更**：见 [§5.3 桌面端主客户端化新边界](#53-桌面端主客户端化新边界替换-v20-52-红线)
 
 ---
 
@@ -15,6 +16,7 @@
 3. [产品定位与北极星指标](#3-产品定位与北极星指标)
 4. [用户画像与核心旅程](#4-用户画像与核心旅程)
 5. [范围与非范围](#5-范围与非范围)
+   - 5.3 [桌面端主客户端化新边界（替换 v2.0 §5.2 红线）](#53-桌面端主客户端化新边界替换-v20-52-红线)
 6. [关键决策（已锁定）](#6-关键决策已锁定)
 7. [功能需求](#7-功能需求)
    - F1 智能问答入口（首页对话框）
@@ -32,6 +34,11 @@
    - F13 环境检测（Web 端 + 桌面端）
    - F14 本地软件清单上报 + 反向推送
    - F15 安装埋点与遥测
+   - **F16 桌面端 Tab 体系（v2.1 新增）**
+   - **F17 桌面端 NLU 搜索 + 推荐面板（v2.1 新增）**
+   - **F18 用量 Dashboard（v2.1 新增）**
+   - **F19 游客模式 + 升级引导（v2.1 新增）**
+   - **F20 C 类 Skill 主动拦截（v2.1 新增）**
 8. [非功能需求](#8-非功能需求)
 9. [技术架构](#9-技术架构)
 10. [数据模型](#10-数据模型)
@@ -67,12 +74,12 @@ v1.0 把「**安装**」当成核心问题，把所有 Skill 都默认走「桌�
 
 ### 1.3 战略定位
 
-| 维度 | v1.0 表述 | v2.0 表述 |
-|---|---|---|
-| 定位 | AI 时代的 Steam / 应用商店 | **跨环境、跨软件的 Skill 智能调度台** |
-| 用户价值 | 替用户执行安装 | **替用户省掉读文档的时间** |
-| 助手定位 | 核心壁垒，所有 Skill 必经之路 | **仅环境依赖型 Skill 的执行载体** |
-| 入口 | 搜索 / 分类 | **首页大对话框（NLU 入口）+ 顶部软件过滤** |
+| 维度 | v1.0 表述 | v2.0 表述 | **v2.1 修正** |
+|---|---|---|---|
+| 定位 | AI 时代的 Steam / 应用商店 | 跨环境、跨软件的 Skill 智能调度台 | **不变** |
+| 用户价值 | 替用户执行安装 | 替用户省掉读文档的时间 | **不变** |
+| 助手定位 | 核心壁垒，所有 Skill 必经之路 | 仅环境依赖型 Skill 的执行载体 | **主客户端（覆盖 A/B/C 三类全闭环）**——详见 [§5.3](#53-桌面端主客户端化新边界替换-v20-52-红线) |
+| 入口 | 搜索 / 分类 | 首页大对话框（NLU 入口）+ 顶部软件过滤 | **不变**（Web 端 NLU 降为 `/skills` 子路径，桌面端 NLU 进 Home Tab） |
 
 ### 1.4 与 V3 路线的关系（不变）
 
@@ -355,7 +362,7 @@ SFTSR = （用户输入需求后，第一次就获得可使用结果的比例）
 - ✅ 内容生成型 Skill 的「立即生成」流程
 - ✅ 数据授权型 Skill 的 OAuth 连接器 + 模板配置
 - ✅ 环境依赖型 Skill 的操作指令包 + 桌面助手
-- ✅ 桌面助手（Tauri + Rust，Windows + macOS）
+- ✅ 桌面助手（Tauri + Rust，Windows + macOS，**v2.1 起为「主客户端」**）
 - ✅ `skillhub://` 自定义协议
 - ✅ 软件路径自动扫描 + 手动补位
 - ✅ 安装剧本引擎（双轨：内置 + 发布者声明）
@@ -365,15 +372,71 @@ SFTSR = （用户输入需求后，第一次就获得可使用结果的比例）
 - ✅ 桌面端本机软件清单上报 → 反向 Skill 推送
 - ✅ 安装埋点与 OISR/SFTSR 仪表盘
 - ✅ 进度通道（SSE）
+- ✅ **v2.1 新增**：桌面端 5-Tab 体系（Home / Explore / My / Usage / Settings）
+- ✅ **v2.1 新增**：桌面端 NLU 搜索 + 「为你推荐」面板（Home Tab）
+- ✅ **v2.1 新增**：桌面端 Skills 列表 / 详情 / 安装（Explore Tab）
+- ✅ **v2.1 新增**：用量 Dashboard + 本地用量存储（Usage Tab + My Tab 小卡）
+- ✅ **v2.1 新增**：游客模式（不登录也能使用 C 类，有限制）
 
 ### 5.2 Out of Scope
 
 - ❌ Linux 桌面助手（M3 评估）
 - ❌ 移动端 Skill
 - ❌ 助手自动升级（M3 不做）
-- ❌ 助手中的「技能商店浏览」（助手只做执行）
+- ❌ **已取消（v2.1）**：原 v2.0 §5.2 “助手中的「技能商店浏览」（助手只做执行）”红线——见 §5.3 桌面端主客户端化新边界
 - ❌ 付费/订阅逻辑（V3 路线已有）
-- ❌ 已装技能的卸载 UI
+- ❌ 已装技能的卸载 UI（v2.1 在 My Tab 提供）
+
+### 5.3 桌面端主客户端化新边界（替换 v2.0 §5.2 红线）
+
+> **变更日期**：2026-09（M4 启动）
+> **变更性质**：**重大修正**——v2.0 §5.2 把桌面端定位为「协议唤起器 + Key 保险箱 + 扫描仪」，v2.1 调整为「主客户端」，覆盖 A/B/C 三类全闭环。
+> **来源**：[.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md](../../.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md)
+
+#### 5.3.1 原红线为何不合理
+
+v2.0 §5.2 把桌面端定位为「协议唤起器 + Key 保险箱 + 扫描仪」，把商店浏览全压给 Web 端。该红线在 D6 决策（用户自费 Key、强依赖助手转发）之后已站不住：
+
+- **链路断太多**：扫到 PS → 跳 Web 端搜 PS 滤镜 → 在 Web 端点安装 → 协议唤起回桌面端——**小白用户走不完**
+- **违反「用户目标分层」**：60% 用户是小白（设计师/运营/营销），他们的诉求是「我装了这个东西，就在这东西里搞完一切」
+- **违反 PRD §2.3「选择权交给用户」原则**：强迫用户跳浏览器是剥夺选择权
+- **后端能力已具备**：`fetch_recommended_skills` 在 [lib.rs:340-375](../../apps/helper/src-tauri/src/lib.rs#L340-L375) 已实现，能从 Web API 拉 Skill 列表——只是前端组件未消费
+
+#### 5.3.2 三痛点 → 产品定位
+
+| 痛点 | 解决位置 |
+|---|---|
+| ① 装完助手→一眼看到能用的 Skill | 桌面端新增 Home Tab（NLU 搜索 + 推荐面板） |
+| ② 装 Skill 后弹窗引导配大模型 | C 类 Skill 点击时主动拦截 + 全局「未配 Key」提示（[F20](#f20-c-类-skill-主动拦截v21-新增)） |
+| ③ 看到自己已装 Skill 的 token 消耗 | 桌面端新增 Usage Tab + Web 端「我的用量」页（[F18](#f18-用量-dashboardv21-新增)） |
+
+#### 5.3.3 新职责划分
+
+| 端 | 职责 |
+|---|---|
+| **桌面端（主客户端）** | NLU 搜索 / Skill 列表 / 详情 / 安装 / 使用 / 用量 Dashboard |
+| **Web 端** | 开发者后台、运营审核、跨设备同步、移动端兜底、SEO 落地页 |
+| **桌面端独立完成** | A 类一键安装 + C 类立即生成 + 用量查看（不依赖 Web 端页面） |
+| **Web 端仍提供** | B 类 OAuth 流程、跨设备同步、付费/订阅、用户账号中心 |
+
+#### 5.3.4 「桌面端主客户端」与原 D6「仅服务 A 类」的关系
+
+v2.1 不否认 D6 决策的本质（LLM Key 本地化、助手转发）；只是修正了「桌面端定位」——从「仅 A 类」提升到「主客户端」：
+
+- A 类：仍为桌面端核心使用场景（环境依赖型仍需本地执行）
+- B 类：详情 / 列表 / 安装状态由桌面端提供，但 OAuth 跳转仍走系统浏览器（避免内嵌 WebView 安全风险）
+- C 类：桌面端可完整闭环生成（不再需要跳 Web 端「内容生成页」）
+
+#### 5.3.5 「商店浏览」从 Web 独享变为双端并行
+
+| 能力 | v2.0 归属 | v2.1 归属 |
+|---|---|---|
+| 首页大对话框（NLU 入口） | Web 独享 | **Web 保留**（降为 `/skills` 子路径）/ 桌面端 Home Tab 同步存在 |
+| 顶部软件过滤 | Web 独享 | **Web + 桌面端**双端 |
+| Skill 列表 / 详情 | Web 独享 | **Web + 桌面端**双端 |
+| Skill 安装（A 类） | Web 跳协议 | **桌面端 Home/Explore Tab 直接触发** |
+| C 类生成 | Web 独享 | **Web + 桌面端**双端（桌面端走本地助手转发） |
+| 用量 Dashboard | 不存在 | **桌面端 Usage Tab + Web 端 `/dashboard/usage`** |
 
 ---
 
@@ -402,6 +465,8 @@ SFTSR = （用户输入需求后，第一次就获得可使用结果的比例）
 ### D6 ✅ LLM 接入策略：**用户本地 Key + 助手转发（默认） / 云端托管（占位，未来启用）**
 
 > **决策日期**：2026-08；**v2.0 调整**：云端不再默认提供 LLM 服务。用户自带 Key，本地助手转发。
+>
+> **v2.1 补充**：桌面端现在是「主客户端」，但 LLM 转发链路不变——Web 与桌面端都是调助手本机 HTTP `/llm/chat`。
 >
 > **为什么这样调整**：
 1. **隐私合规**：用户 Key 不上云，零泄露风险（GDPR/个保法友好）
@@ -496,6 +561,26 @@ type IntentParseOutput = {
 | **A. 操作指令包** | ①软件路径图标 ② 文案描述 ③ GIF/视频动图（≤ 1 分钟）④ 一键复制代码块按钮 ⑤ 「遇到问题点这里」反馈文档链接 ⑥ 关键引导语（§2.3） |
 | **B. OAuth 连接器** | ① 第三方 Logo + 锁名 ② 「授权飞书」/「授权 Notion」双 OAuth 按钮 ③ 授权后跳转到「下一步」模板配置页 ④ 后续可重复使用同一 Skill |
 | **C. 最终结果** | ① 直接出结果（文案/PPT/纪要）②「不满意？重生成」按钮 ③ 「调参数」侧边栏（语气、长度、格式）④ 一键下载 / 复制 / 同步到第三方 |
+
+> **v2.1 补充**：三类交付物在 Web 端、桌面端双端提供相同形态，Web 端的 `content-deliverable.tsx` / `environment-deliverable.tsx` / `oauth-deliverable.tsx` 复用逻辑被桌面端 `SkillDetailDialog` 组件复用（详见 [F3](#f3-skill-详情页三形态差异化p0) + [§9.2](#92-模块依赖)）。
+
+### D8 ✅ 桌面端定位升级为「主客户端」（v2.1 新增）
+
+> **决策日期**：2026-09（M4 启动）；**变更性质**：**修正 v2.0 §5.2 红线**——桌面端不再是「协议唤起器 + Key 保险箱 + 扫描仪」，而是「主客户端」，覆盖 A/B/C 三类 Skill 的浏览 / 详情 / 安装 / 使用全闭环。
+> **详情**：见 [§5.3](#53-桌面端主客户端化新边界替换-v20-52-红线)。
+
+| 决策点 | v2.1 方案 | 备选 |
+|---|---|---|
+| **桌面端 Tab 体系** | 5 个 Tab：Home / Explore / My / Usage / Settings | 仅 2 个 Tab（Settings + About） |
+| **桌面端是否浏览 Skill 列表** | ✅ 提供（Home 推荐 + Explore 全量列表） | 仅协议唤起 |
+| **C 类生成走哪条路径** | 桌面端本地助手转发（不经 Web 中转） | 桌面端跳 Web 端生成页 |
+| **B 类 OAuth 跳转方式** | 系统浏览器（`tauri-plugin-opener`）+ 协议回桌面端 | 桌面端内嵌 WebView |
+| **游客模式是否限制生成次数** | **推荐：单机每天 50 次（C 类）** | 完全不限 / 单机每天 10 次 |
+| **用量数据是否上报 Web** | **推荐：本地为主 + 用户手动同步** | 完全本地 / 实时上报 |
+| **Web 端首页如何处理** | **推荐：NLU 降为 `/skills` 子路径，首页变「下载助手」** | 保留 NLU 首页但弱化 / 重定向到下载页 |
+| **估算费用币种** | **推荐：CNY（按 DeepSeek/OpenAI 国内定价）** | USD / 多币种 |
+
+这些决策直接影响数据模型（[§10](#10-数据模型)）与 UI 行为（[§7](#7-功能需求) F16-F20），M4 实施前需明确以上 Q1-Q5 选项。
 
 ---
 
@@ -905,6 +990,243 @@ POST /api/v2/helper/heartbeat { installed_software: [...] }
 | `content_generated` | C 类生成完成 | `skill_slug`, `tokens_used`, `satisfaction_mark` |
 | `software_installed_reported` | 助手上报本机软件 | `software`, `count` |
 | `reverse_push_delivered` | 反向推送触达 | `user_id`, `matched_skills[]` |
+| **v2.1 新增** `desktop_tab_switched` | 用户在桌面端切 Tab | `from_tab`, `to_tab` |
+| **v2.1 新增** `desktop_search_submitted` | 桌面端 Home Tab 提交搜索 | `query_hash`, `result_count`, `click_first_skill` |
+| **v2.1 新增** `desktop_skill_install_clicked` | 桌面端点安装按钮 | `skill_slug`, `category`, `source_tab` |
+| **v2.1 新增** `desktop_unconfigured_key_prompt_shown` | 未配 Key 点 C 类 Skill | `trigger`, `accepted_or_later` |
+| **v2.1 新增** `usage_recorded` | 助手本地记账 | `skill_slug`, `tokens_in`, `tokens_out`, `source` |
+| **v2.1 新增** `usage_synced_to_web` | 用户手动同步用量到云端 | `record_count`, `deduped` |
+| **v2.1 新增** `guest_upgrade_prompt_shown` | 游客用满 50 次弹注册引导 | `trigger_count` |
+
+---
+
+### F16 桌面端 Tab 体系（v2.1 新增，P0）
+
+> **设计依据**：[.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md §2](../../.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md)
+
+**描述**：桌面端 App 从 2-Tab（Settings + About）升级为 **5-Tab**（Home / Explore / My / Usage / Settings），About 合并到 Settings 内。
+
+**用户故事**：
+
+> 作为一名运营，**我想**装完助手后**就能在助手内找 Skill、看推荐、查看用量**，**以便**不用被迫跳到浏览器。
+
+**Tab 列表**：
+
+| Tab | 路由 | 内容 | 主要组件 |
+|---|---|---|---|
+| **Home** | `tab=home` | NLU 搜索框 + 「为你推荐」（基于本机软件） | `<HomePage>` / `<NluSearchBox>` / `<RecommendedForYou>` |
+| **Explore** | `tab=explore` | 顶部软件过滤 + Skill 列表 | `<ExplorePage>` / `<SoftwareIconBar>` / `<SkillCard>` |
+| **My** | `tab=my` | 已装 Skills + 用量小卡 | `<MySkillsPage>` / `<InstalledSkillItem>` / `<UsageMiniCard>` |
+| **Usage** | `tab=usage` | 用量 Dashboard（日/周/月 + 按 Skill + 估算费用） | `<UsagePage>` / `<UsageDashboard>` |
+| **Settings** | `tab=settings` | LLM Key + 本机软件 + 诊断 + 关于 | `<Settings>`（扩展现有） |
+
+顶栏右侧保留：
+- LLM Key 状态徽章（已就绪 / 未配置）
+- 登录徽章（已绑定 Web 账号 / 游客）
+
+**键盘导航**：Home / End 在 Tab 间跳，← → 在 Tab 内焦点移动，Enter 触发。
+
+**文件变更**（[App.tsx](../../apps/helper/src/App.tsx) 入口修改）：
+
+```typescript
+// apps/helper/src/App.tsx
+type Tab = 'home' | 'explore' | 'my' | 'usage' | 'settings';  // v2.1: 5-Tab
+```
+
+**新增文件**：
+
+```
+apps/helper/src/
+├── pages/
+│   ├── Home.tsx                     # 新增：NLU 搜索 + 推荐面板
+│   ├── Explore.tsx                  # 新增：软件过滤 + Skill 列表
+│   ├── MySkills.tsx                 # 新增：已装 Skills 列表 + 卸载
+│   └── Usage.tsx                    # 新增：用量 Dashboard
+└── components/
+    ├── NluSearchBox.tsx             # 新增：桌面端版 NLU 搜索框
+    ├── RecommendedForYou.tsx        # 新增：本机软件对应的推荐卡片
+    ├── SoftwareIconBar.tsx          # 新增：桌面端版软件过滤（从 Web 端 software-icon-bar.tsx 改写）
+    ├── SkillCard.tsx                # 新增：Skill 卡片（紧凑版，与 Web 端 SkillResults 对齐）
+    ├── SkillDetailDialog.tsx        # 新增：三形态差异化详情弹窗（A/B/C）
+    ├── UsageDashboard.tsx           # 新增：用量图表 + 列表
+    └── UsageMiniCard.tsx            # 新增：嵌入 My Tab 的用量小卡
+```
+
+---
+
+### F17 桌面端 NLU 搜索 + 推荐面板（v2.1 新增，P0）
+
+**描述**：Home Tab 顶部一个大对话框 + 下方「为你推荐」面板，复用 Web 端 `intent/parse` API（不另写一份）。
+
+**NLU 搜索行为**：
+
+```
+用户输入「帮我把照片磨皮」
+  ↓
+调 Web API：POST /api/v2/intent/parse
+Body: { query, client_context: { detected_software, anonymous_id } }
+  ↓
+返回 Top 3 Skill 列表 + skill_category
+  ↓
+桌面端渲染 SkillCard，点击进入 SkillDetailDialog
+```
+
+> **数据源优先级**：`/api/v2/intent/parse` 云端 API → `seed-skills.json` 本地兜底。
+
+**「为你推荐」面板**：
+
+```
+桌面端 invoke('fetch_recommended_skills', installed_software_list)
+  ↓
+云端 API：GET /api/v2/skills?software=<本机软件>&category=A&limit=20
+  ↓
+返回 Skill 列表，按软件分组，每组展示 3-5 张卡片
+  ↓
+卡片点入 SkillDetailDialog（推荐安装 A 类）
+```
+
+> **底层调用**：复用 [lib.rs:340-375](../../apps/helper/src-tauri/src/lib.rs#L340-L375) 已实现的 `fetch_recommended_skills`，v2.1 仅做前端消费。
+
+---
+
+### F18 用量 Dashboard（v2.1 新增，P0）
+
+> **设计文档**：[HELPER_USAGE_DASHBOARD.md](./HELPER_USAGE_DASHBOARD.md)
+
+**描述**：桌面端 Usage Tab + Web 端 `/dashboard/usage` 提供用量 Dashboard，用户能查看自己用 Skill 的 token 消耗与估算费用。
+
+**数据流**：
+
+```
+LLM 调用成功
+  ↓
+llm_proxy.rs::handle_chat 调 LlmProvider
+  ↓
+拿到 resp.tokens_used
+  ↓
+usage_store.rs.record({ skill_slug, provider_id, model, tokens_in/out, duration_ms, cost_estimate, source: "HELPER_PROXY" })
+  ↓
+记账失败 → log::warn（不影响 LLM 响应）
+  ↓
+桌面端 Usage Tab：GET /llm/usage/summary?range=week
+  ↓
+桌面端组件 UsageDashboard 渲染
+```
+
+**桌面端 Usage Tab**：
+
+- 顶部时间切换：今日 / 本周 / 本月
+- 卡片 1：总 tokens + 估算费用（按当前 Provider 单价）
+- 卡片 2：按 Skill Top 5（横向条形）
+- 卡片 3：按 Provider 占比（饼图）
+- 底部「导出 CSV」按钮 → 桌面端 invoke `export_usage_csv`
+
+**Web 端「我的用量」页**（`/dashboard/usage`）：
+
+- 登录态下展示用户在所有端累计用量
+- 数据源：`UsageRecord` 表 + `/api/v2/usage/sync` 上报
+- 「立即同步桌面端用量」按钮 → 调 `/api/v2/usage/sync` 上报本地记录
+
+**Provider 定价数据源**：
+
+- Web 端 `GET /api/v2/provider-pricing` 暴露 `ProviderPricing` 表
+- 桌面端启动时拉一次，缓存到内存（24h 失效）
+
+**费用估算公式**：
+
+```
+cost = (tokens_in / 1_000_000) × provider_price.input
+     + (tokens_out / 1_000_000) × provider_price.output
+```
+
+> **标注**：UI 明确显示「估算，按 Provider 官方单价」，提供「按用量校准」入口。
+
+---
+
+### F19 游客模式 + 升级引导（v2.1 新增，P1）
+
+**描述**：桌面端支持不登录也能使用 C 类 Skill（生成结果），但有限制（**推荐：单机每天 50 次**）；用满后弹注册引导弹窗，引导用户绑定 Web 账号以解锁全部能力。
+
+**用户故事**：
+
+> 作为一名未注册的运营，**我想**先试用看看效果，**以便**决定是否要注册账号。
+
+**匿名 ID 生成**（桌面端启动时）：
+
+```rust
+// apps/helper/src-tauri/src/lib.rs
+#[tauri::command]
+async fn ensure_guest_session(app: AppHandle, state: State<KeyStore>) -> Result<String, String> {
+    // 1. 读本地缓存的 anonymousId
+    // 2. 不存在 → 生成 UUID v4 + 写本地 AES 加密
+    // 3. 算机器指纹哈希（与 anonymousId 一起用于防滥用）
+    // 4. 返回 anonymousId
+}
+```
+
+**游客限制策略**（**推荐方案**）：
+
+| 项 | 限制 |
+|---|---|
+| 单机每天 C 类生成次数 | 50 次（基于 anonymousId + 机器指纹） |
+| 用量数据是否上报 Web | 本地为主，用户手动同步 |
+| 跨设备同步 | ❌ 不支持（升级后可） |
+| 已装 Skill 列表同步 | ❌ 不支持（升级后可） |
+
+**升级引导弹窗**（触发时机）：
+
+- 用满 50 次后，第 51 次请求时弹窗
+- 文案：「您已试用 50 次，注册账号可解锁全部能力（无限制用量 / 跨设备同步）」
+- 按钮：「注册 / 绑定 Web 账号」→ 调 Web 端登录页 → OIDC 回调回桌面端
+- 按钮：「稍后再说」→ 关闭弹窗，本地继续使用
+
+**后台关联逻辑**（用户注册后）：
+
+```
+Web OIDC 登录成功
+  ↓
+携带 anonymousId 调 Web API：POST /api/v2/auth/bind-guest
+Body: { anonymousId, fingerprint }
+  ↓
+Web 创建/更新 GuestSession（关联 userId）
+  ↓
+下次游客模式操作时，匿名数据自动迁移到该 userId
+```
+
+---
+
+### F20 C 类 Skill 主动拦截（v2.1 新增，P0）
+
+**描述**：用户在桌面端任意 Tab 点 C 类 Skill 时，如果当前未配 LLM Key，主动拦截并弹窗引导配 Key。
+
+**用户故事**：
+
+> 作为一名新用户，**我想**点 C 类 Skill 后立刻知道需要配 Key，**以便**不被空按钮折磨。
+
+**触发时机**：桌面端任意 Tab（Home / Explore / My）点击 C 类 Skill。
+
+**拦截流程**：
+
+```
+用户点 C 类 Skill
+  ↓
+桌面端 invoke('get_helper_status')
+  ↓
+├─ hasKey=true → 进入 SkillDetailDialog，生成按钮可用
+└─ hasKey=false → 弹窗「此 Skill 需要大模型（约 30 秒配好）」
+       ├─ [现在配] → 跳 Settings Tab 并自动展开 Key 编辑面板
+       └─ [稍后] → 关闭弹窗，Skill 详情仍可看但生成按钮禁用 + 全局顶栏「未配 Key」徽章高亮
+```
+
+**全局「未配 Key」徽章**：
+
+```
+顶栏右上角始终显示 LLM Key 状态徽章
+  ├─ 绿色「已就绪」 → 默认状态
+  └─ 黄色「未配置」 → 点 C 类 Skill 时高亮 + 提示文案
+```
+
+**额外行为**：未配 Key 时，My Tab 已装 C 类 Skill 的 UsageMiniCard 显示「需要 Key 才能生成」占位。
 
 ---
 
@@ -917,25 +1239,33 @@ POST /api/v2/helper/heartbeat { installed_software: [...] }
 | 首页对话框 LLM 解析端到端 | ≤ 2s（缓存命中 ≤ 200ms）|
 | 内容生成型端到端 | ≤ 8s |
 | 一键安装端到端（A 类，不含运行时） | ≤ 60s |
-| 助手冷启动到空闲 | ≤ 800ms |
+| 助手冷启动到空闲 | **v2.1：≤ 1500ms**（v2.0 为 ≤ 800ms，多页加载原因） |
 | 协议唤起到助手窗口显示 | ≤ 500ms |
-| 助手续期内存（空闲） | ≤ 30MB |
+| 助手续期内存（空闲） | **v2.1：≤ 80MB**（v2.0 为 ≤ 30MB，多页 + 图表库） |
 | SSE 端到端延迟 | ≤ 1s |
-| Helper 安装包 | ≤ 2MB（不含运行时）|
+| Helper 安装包 | **v2.1：≤ 8MB**（v2.0 为 ≤ 2MB，5 个 Tab + SkillCard + 图标） |
+| 本机 HTTP 端口 | 1 个（不变，llm_proxy 已含） |
+| **v2.1 新增** 用量本地存储滚动清理 | 90 天 |
+
+> **v2.1 资源上谓理由**：桌面端从「协议唤起器」升级为「主客户端」，承载 5 个 Tab + SkillCard 网格 + 图标库 + 图表库（Usage Dashboard）。在性能可接受范围内提高预算，但需依赖 React.lazy 拆分页面 + 按需加载（[§15.1 R1](#151-风险表v20-新增--调整)）。
 
 ---
 
 ## 9. 技术架构
 
-### 9.1 全局组件图（v2.0 重大调整）
+### 9.1 全局组件图（v2.1 重大调整：桌面端变主客户端）
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       Web (apps/web)                                 │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  首页                                                        │    │
+│  │  首页（v2.1 降级为「下载助手」）                                  │    │
+│  │  - 原 NLU 入口 下沉到 /skills 子路径 + canonical tag          │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  /skills（v2.1 新增主 NL 路径）                                 │    │
 │  │  ┌─────────────────────────┐  ┌─────────────────────────┐    │    │
-│  │  │ ChatIntentInput (60%)   │  │ SoftwareIconBar (顶部)   │    │    │
+│  │  │ ChatIntentInput          │  │ SoftwareIconBar (顶部)   │    │    │
 │  │  │ - NLU 入口               │  │ - 软件过滤              │    │    │
 │  │  │ - 调用 LLM 解析          │    │ - 已装高亮（小红点）     │    │    │
 │  │  └─────────────────────────┘  └─────────────────────────┘    │    │
@@ -954,8 +1284,12 @@ POST /api/v2/helper/heartbeat { installed_software: [...] }
 │  │  │ (LLM 调用)      │ │ (OAuth 流程)   │ │ /generate      │   │    │
 │  │  └────────────────┘ └────────────────┘ └────────────────┘   │    │
 │  │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐   │    │
-│  │  │ /install/jobs  │ │ /helper/*      │ │ /user/*        │   │    │
-│  │  │ (A 类 SSE)     │ │ (心跳 + 上报)  │ │ (已装软件)     │   │    │
+│  │  │ /install/jobs  │ │ /helper/*      │ │ /user/usage    │   │    │
+│  │  │ (A 类 SSE)     │ │ (心跳 + 上报)  │ │ (v2.1 新)     │   │    │
+│  │  └────────────────┘ └────────────────┘ └────────────────┘   │    │
+│  │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐   │    │
+│  │  │ /usage/sync    │ │ /provider-     │ │ /dashboard/    │   │    │
+│  │  │ (v2.1 新)     │ │ pricing (v2.1)│ │ usage (v2.1 新)│   │    │
 │  │  └────────────────┘ └────────────────┘ └────────────────┘   │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                          ↕ Prisma + Redis                            │
@@ -964,28 +1298,45 @@ POST /api/v2/helper/heartbeat { installed_software: [...] }
 │  │  - Skill (含 category 字段), IntentTag, SoftwareTag          │    │
 │  │  - InstallJob, PlaybookDefinition, UserInstalledSoftware     │    │
 │  │  - UserOAuthConnection, OAuthTemplate                        │    │
+│  │  - 【v2.1 新增】GuestSession, UsageRecord, ProviderPricing   │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 │                          ↕                                          │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  LLM Gateway (新增)                                          │    │
+│  │  LLM Gateway                                                 │        │
 │  │  - 默认走「助手转发」：Web → 助手本机 HTTP → LLM Provider     │    │
 │  │  - 云端直连占位（useCloudFallback=false），未来托管可启用     │    │
-│  │  - 启发式兜底（关键词字典 + SQL LIKE）                        │    │
+│  │  - 启发式兑底（关键词字典 + SQL LIKE）                        │    │
 │  │  - Redis TTL 24h 缓存                                         │    │
+│  │  - 【v2.1 补充】调用 /llm/chat 时附带 anonymousId + skillSlug │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                               ↕ skillhub://install/xxx
 ┌─────────────────────────────────────────────────────────────────────┐
-│              Desktop Helper (apps/helper) — 仅服务 A 类            │
+│        Desktop Helper (apps/helper) — 【v2.1 主客户端】          │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  React 前端（v2.1 5-Tab 体系）                                 │    │
+│  │  ┌───────────────────────────────────────────────────────┐  │    │
+│  │  │ Tab 体系：                                              │  │    │
+│  │  │  - Home     (NLU 搜索 + 推荐面板)                       │  │    │
+│  │  │  - Explore  (软件过滤 + Skill 列表)                    │  │    │
+│  │  │  - My       (已装 Skills + 用量小卡)                    │  │    │
+│  │  │  - Usage    (用量 Dashboard)                            │  │    │
+│  │  │  - Settings (LLM Key + 软件 + 诊断 + 关于)              │  │    │
+│  │  │ 顶栏：LLM Key 状态徽章 + 登录徽章                       │  │    │
+│  │  └───────────────────────────────────────────────────────┘  │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │  Rust Backend                                                │    │
 │  │  - protocol.rs / scanner.rs / env.rs                         │    │
 │  │  - playbook.rs (剧本引擎)                                     │    │
 │  │  - progress.rs (SSE 上报)                                    │    │
-│  │  - reporter.rs (新增：本机软件清单上报)                         │    │
+│  │  - reporter.rs (本机软件清单上报)                            │    │
+│  │  - 【v2.1 新增】usage_store.rs (本地用量 SQLite 存储)       │    │
+│  │  - 【v2.1 新增】llm_proxy.rs::handle_record_usage /         │    │
+│  │    handle_usage_summary                                      │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
-                              ↕ OAuth 重定向
+                              ↕ OAuth 重定向（系统浏览器）
 ┌─────────────────────────────────────────────────────────────────────┐
 │         第三方 Provider（飞书/Notion/Gmail/...）                    │
 └─────────────────────────────────────────────────────────────────────┘
@@ -998,18 +1349,28 @@ apps/web ─────► packages/skill-validator (校验 SKILL.md 含 catego
    │
    ├────► LLM Gateway (apps/web/lib/services/LlmGateway.ts)
    │         └─→ 转发到 apps/helper 本机 HTTP（用户本地 Key）
+   │         └─→ 【v2.1】调用 /llm/chat 时附带 anonymousId + skillSlug
    │
    ├────► packages/skill-test-harness (CI 中 dry-run 剧本 + 校验 llm_config)
    │
-   └────► apps/cli (复用流程图命令生成)
+   ├────► apps/cli (复用流程图命令生成)
+   │
+   ├────► 【v2.1 新增】路由 /api/v2/user/usage（数据源 UsageRecord）
+   ├────► 【v2.1 新增】路由 /api/v2/usage/sync（接收桌面端批量上报）
+   └────► 【v2.1 新增】路由 /api/v2/provider-pricing（读取 ProviderPricing 表）
 
 apps/helper (独立 Tauri 工程，不在 monorepo build)
    │
    ├─→ llm_proxy.rs (本机 HTTP 服务，转发到用户配置的 LLM Provider)
+   │     ├─→ POST /llm/chat (调 LLM Provider + 【v2.1】同步记录 usage)
+   │     ├─→ GET  /llm/status
+   │     ├─→ POST /llm/keys/test
+   │     ├─→ 【v2.1 新增】POST /llm/usage/record
+   │     └─→ 【v2.1 新增】GET  /llm/usage/summary?range=...
    ├─→ reporter.rs (本机软件清单上报)
-   └─→ Key 存 .data/llm-keys.json (AES 加密)
-
-apps/helper (独立 Tauri 工程，不在 monorepo build)
+   ├─→ 【v2.1 新增】usage_store.rs (本地用量 SQLite + 90 天滚动清理)
+   ├─→ Key 存 .data/llm-keys.json (AES 加密)
+   └─→ 【v2.1 新增】src/ 5-Tab 前端（Home / Explore / My / Usage / Settings）
 ```
 
 ---
@@ -1104,7 +1465,62 @@ model OAuthTemplate {
 }
 
 // 6. InstallJob, InstallEvent, PlaybookDefinition, UserSoftwarePath（保留 v1.0 定义）
+
+// 7. 【v2.1 新增】游客会话（不登录也能用，绑定机器指纹）
+model GuestSession {
+  id          String   @id @default(cuid())
+  anonymousId String   @unique             // 桌面端生成的 UUID v4
+  fingerprint String                       // 机器指纹哈希（用于防滥用）
+  createdAt   DateTime @default(now())
+  upgradedAt  DateTime?                    // 用户注册关联时间
+  userId      String?  @unique             // 用户注册后反填
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([anonymousId])
+  @@index([userId])
+}
+
+// 8. 【v2.1 新增】用户用量记录（核心）
+model UsageRecord {
+  id            String   @id @default(cuid())
+  userId        String?                      // 登录用户；游客为 null
+  anonymousId   String?                      // 游客匿名 ID；登录为 null
+  skillSlug     String                       // "xiaohongshu-copy"
+  providerId    String                       // "deepseek" / "openai" / "glm"
+  model         String                       // "deepseek-chat" / "gpt-4o" / ...
+  tokensIn      Int                          // 输入 token 数
+  tokensOut     Int                          // 输出 token 数
+  durationMs    Int                          // 调用耗时
+  costEstimate  Decimal? @db.Decimal(12, 8)  // 估算费用（CNY）
+  source        UsageSource                  // HELPER_PROXY | WEB_DIRECT
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([anonymousId, createdAt])
+  @@index([skillSlug, createdAt])
+  @@index([providerId, createdAt])
+}
+
+enum UsageSource {
+  HELPER_PROXY  // 经助手本机 HTTP 转发（D6 主路径）
+  WEB_DIRECT    // 未来云端直连（D6 占位，当前不启用）
+}
+
+// 9. 【v2.1 新增】Provider 定价（平台维护，用于估算费用）
+model ProviderPricing {
+  id          String   @id @default(cuid())
+  providerId  String                          // "deepseek" / "openai" / "glm"
+  model       String                          // "deepseek-chat" / "gpt-4o" / ...
+  inputPrice  Decimal  @db.Decimal(12, 8)     // ¥/1M tokens
+  outputPrice Decimal  @db.Decimal(12, 8)     // ¥/1M tokens
+  currency    String   @default("CNY")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([providerId, model])
+}
 ```
+
+> **v2.1 补充**：`SkillCategory` / `InstallType` enum 在原 v2.0 schema 基础上保持不变（Agent Skills 三分类是 M1/M2/M3 已定义的产物，v2.1 不重复定义）。
 
 ---
 
@@ -1124,7 +1540,8 @@ Body: {
   "query": "帮我把照片皮肤磨皮",
   "client_context": {
     "detected_software": ["photoshop", "vscode"]   // 来自 F13
-  }
+  },
+  "anonymous_id": "550e8400-e29b-41d4-a716-446655440000"  // 【v2.1 新增】游客匿名 ID
 }
 → 200 OK
 {
@@ -1155,7 +1572,11 @@ Body: {
 
 ```
 POST /api/v2/skills/[slug]/generate
-Body: { "params": { "topic": "618 母婴", "tone": "活泼", "length": "中等" } }
+Body: {
+  "params": { "topic": "618 母婴", "tone": "活泼", "length": "中等" },
+  "anonymous_id": "550e8400-e29b-41d4-a716-446655440000",   // 【v2.1 新增】游客匿名 ID
+  "skill_slug": "xiaohongshu-copy"                            // 【v2.1 新增】计量统计
+}
 → 200 OK (or SSE 流式)
 {
   "content": "宝妈必囤！618 这 5 款...",
@@ -1191,6 +1612,109 @@ GET /api/v2/helper/heartbeat
 
 （与 v1.0 §11 一致，详见 [v1.0](./ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md#11-api-契约)）
 
+### 12.6 【v2.1 新增】用量 / 游客 / 桌面端 invoke
+
+#### 12.6.1 Web 端 API
+
+```
+# 获取当前用户（或游客）用量聚合
+GET /api/v2/user/usage?range=today|week|month&group=skill|provider
+Headers: { Authorization: Bearer <session> } 或 { X-Anonymous-Id: <uuid> }
+→ 200 OK
+{
+  "total_tokens_in": 12500,
+  "total_tokens_out": 8200,
+  "total_cost": 0.42,                          // CNY，估算
+  "currency": "CNY",
+  "by_skill": [
+    { "key": "xiaohongshu-copy", "tokens_in": 8000, "tokens_out": 5200, "cost": 0.28, "count": 5 }
+  ],
+  "by_provider": [
+    { "key": "deepseek", "tokens_in": 9000, "tokens_out": 6000, "cost": 0.32, "count": 8 }
+  ]
+}
+
+# 桌面端手动同步本地用量到云端
+POST /api/v2/usage/sync
+Headers: { Authorization: Bearer <session> } 或 { X-Anonymous-Id: <uuid> }
+Body: {
+  "records": [
+    {
+      "skill_slug": "xiaohongshu-copy",
+      "provider_id": "deepseek",
+      "model": "deepseek-chat",
+      "tokens_in": 800,
+      "tokens_out": 600,
+      "duration_ms": 5200,
+      "cost_estimate": 0.025,
+      "source": "HELPER_PROXY",
+      "client_record_id": "<uuid>",           // 幂等键，重复上报会跳过
+      "occurred_at": "2026-09-03T08:30:00Z"
+    }
+  ]
+}
+→ 200 OK
+{ "accepted": 1, "deduped": 0 }
+
+# 获取 Provider 定价表（桌面端缓存用）
+GET /api/v2/provider-pricing
+→ 200 OK
+[
+  { "provider_id": "deepseek", "model": "deepseek-chat",  "input_price": 1.0,  "output_price": 2.0,  "currency": "CNY" },
+  { "provider_id": "openai",   "model": "gpt-4o-mini",    "input_price": 0.15, "output_price": 0.6,  "currency": "CNY" },
+  { "provider_id": "glm",      "model": "glm-4-flash",    "input_price": 0.1,  "output_price": 0.1,  "currency": "CNY" }
+]
+
+# 游客注册绑定（Web OIDC 回调成功后调用）
+POST /api/v2/auth/bind-guest
+Body: { "anonymous_id": "<uuid>", "fingerprint": "<hash>" }
+→ 200 OK
+{ "migrated_records": 47 }                    // 关联后被迁入的游客记录数
+```
+
+#### 12.6.2 桌面端 Rust invoke 命令（apps/helper/src-tauri/src/lib.rs）
+
+```rust
+// 用量本地记账（核心）
+#[tauri::command]
+async fn record_usage(state: State<UsageStore>, rec: UsageRecord) -> Result<(), String>;
+
+#[tauri::command]
+async fn get_local_usage_summary(state: State<UsageStore>, range: String) -> Result<UsageSummary, String>;
+
+#[tauri::command]
+async fn export_usage_csv(state: State<UsageStore>, range: String) -> Result<String, String>;
+
+// 游客会话（不登录也能用）
+#[tauri::command]
+async fn ensure_guest_session(app: AppHandle, state: State<KeyStore>) -> Result<String, String>;
+
+// 推荐 Skill（已实现 fetch_recommended_skills，新增前端消费）
+#[tauri::command]
+async fn get_recommended_for_local_software(software_tags: Vec<String>) -> Result<Vec<SkillSummary>, String>;
+
+// 助手状态探测（F20 C 类拦截用）
+#[tauri::command]
+async fn get_helper_status(state: State<KeyStore>) -> Result<HelperStatus, String>;
+```
+
+#### 12.6.3 桌面端本机 HTTP 端点（apps/helper/src-tauri/src/llm_proxy.rs）
+
+```rust
+// 原有（v2.0）
+POST  /llm/chat         // 调 LLM Provider，成功后同步记录 usage【v2.1】
+GET   /llm/status       // 助手是否配置了 Key
+POST  /llm/keys/test    // 测试 Key 有效性
+
+// v2.1 新增
+POST  /llm/usage/record
+Body: { skill_slug, provider_id, model, tokens_in, tokens_out, duration_ms, cost_estimate?, source: "HELPER_PROXY" }
+→ 200 OK { "ok": true }
+
+GET   /llm/usage/summary?range=today|week|month
+→ 200 OK UsageSummary { total_tokens_in, total_tokens_out, total_cost, by_skill: [...], by_provider: [...] }
+```
+
 ---
 
 ## 13. 安全与权限模型
@@ -1208,16 +1732,49 @@ GET /api/v2/helper/heartbeat
 - 用户可关闭「软件清单上报」（助手设置）
 - 反向推送的匹配规则公开（避免「黑盒推荐」）
 
+### 13.3 【v2.1 新增】游客匿名 ID
+
+#### 13.3.1 anonymousId 生成与存储
+
+- 桌面端启动时调 `ensure_guest_session`，生成 UUID v4 作为 `anonymousId`
+- 同步计算机器指纹哈希（`fingerprint`），与 `anonymousId` 一起上传到云端 `GuestSession` 表
+- 两者联合用于防滥用（防止恶意清表重提获取新 `anonymousId`）
+
+#### 13.3.2 anonymousId 不存储于云端原始日志
+
+- `anonymousId` 可出现在业务日志中（仅用于挂账），**不能**出现在产品分析 / 营销埋点 / 跨设备指纹库里
+- 转化请求（如 `/api/v2/auth/bind-guest`）以外的请求不携带 `fingerprint` 原值
+
+#### 13.3.3 anonymousId 与 Web 账号关联
+
+- 用户在 Web 端 OIDC 登录成功后，后端创建 / 更新 `GuestSession`，反填 `userId`
+- 历史匿名 `UsageRecord` 自动迁入该 `userId`（迁移逻辑见 `/api/v2/auth/bind-guest` 响应 `migrated_records`）
+- 仅用户本人可绑定自己的 `anonymousId`（限制 1 个；多次绑定需手动确认）
+
+#### 13.3.4 桌面端游客模式限制（推荐 50 次/天）
+
+- 客户端 + 云端双层限流：本地先计数，云端 `/api/v2/usage/sync` 额外校验
+- 超过阈值后弹注册引导（详见 [F19](#f19-游客模式--升级引导v21-新增p1)）
+- 限流逻辑不依赖登录态，可对纯游客生效
+
+### 13.4 【v2.1 新增】用量数据隐私
+
+- `UsageRecord` 仅记录 token 用量与最小元数据（`skill_slug` / `provider_id` / `model` / `tokens_in/out`）
+- **不记录**：输入内容、输出内容、提示词、调用参数细节
+- Web 端 `/dashboard/usage` 页面明确标注「本页仅展示用量统计，不含 Skill 调用内容」
+- 桌面端 `export_usage_csv` 导出同上原则
+
 ---
 
 ## 14. 实施路线图与里程碑
 
-### 14.1 总览：3 个里程碑，12 周
+### 14.1 总览：4 个里程碑（M1-M3 + M4 v2.1 追加），18 周
 
 ```
-M1 (W1-W5)   ──►  助手 MVP + C 类 + NLU 入口（必须同时上线）
-M2 (W6-W9)   ──►  A 类（协议 + 剧本 + 内置 5 个剧本）
-M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
+M1 (W1-W5)     ──►  助手 MVP + C 类 + NLU 入口（必须同时上线）
+M2 (W6-W9)     ──►  A 类（协议 + 剧本 + 内置 5 个剧本）
+M3 (W10-W12)   ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
+M4 (W13-W18)   ──► 【v2.1 新增】桌面端主客户端化（5 Tab + 用量 + 游客模式 + Web 降级）
 ```
 
 > **理由（v2.0.2 调整）**：D6 决策后，**C 类强依赖桌面助手**——Web 端不再直接调 LLM。所以助手必须 M1 同步上线，不能再延后到 M2。M1 任务量更紧：5 周内既要做助手最小骨架（含 LLM 转发），又要跑通 C 类全链路。
@@ -1284,6 +1841,74 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 
 **M3 验收**：B 类 OAuth 完成率 ≥ 75%；整体 SFTSR ≥ 85%。
 
+### 14.4 【v2.1 新增】M4：桌面端主客户端化（W13-W18，6 周）
+
+> **目标**：将桌面端从「协议唤起器」升级为「主客户端」，覆盖 A/B/C 三类全闭环；同时落地用量 Dashboard 与游客模式，并完成 Web 端「下载助手」首页改造。
+> **对应决策**：[D8](#d8-✅-桌面端定位升级为主客户端v21-新增) / [§5.3](#53-桌面端主客户端化新边界替换-v20-52-红线) / 功能需求 [F16](#f16-桌面端-tab-体系v21-新增p0) / [F17](#f17-桌面端-nlu-搜索--推荐面板v21-新增p0) / [F18](#f18-用量-dashboardv21-新增p0) / [F19](#f19-游客模式--升级引导v21-新增p1) / [F20](#f20-c-类-skill-主动拦截v21-新增p0)
+
+#### M4-W13~W14（2 周）：桌面端 Tab 体系 + Home/Explore/My 三个 Tab
+
+| 任务 | 工期 |
+|---|---|
+| Rust 端：`fetch_recommended_skills` 前端消费（已有 backend，加组件） | 1d |
+| 前端：App.tsx Tab 类型从 2 Tab 升级为 5 Tab（`home` / `explore` / `my` / `usage` / `settings`） | 1d |
+| 前端：`<HomePage>`（NLU 搜索框 + 推荐面板，调用 `/api/v2/intent/parse` + `fetch_recommended_skills`） | 3d |
+| 前端：`<ExplorePage>`（软件过滤 + Skill 列表，`<SoftwareIconBar>` + `<SkillCard>`） | 3d |
+| 前端：`<MySkillsPage>`（已装 Skills 列表 + 卸载） | 2d |
+| 前端：`<SkillDetailDialog>` 三形态差异化渲染（A/B/C，复用 Web 端组件逻辑） | 3d |
+| 键盘导航（Home/End/Arrow） | 0.5d |
+| 验收：A/C 类 Skill 桌面端完整闭环（不跳 Web 端） |  |
+
+#### M4-W15（1 周）：LLM Key 主动拦截
+
+| 任务 | 工期 |
+|---|---|
+| 前端：`get_helper_status` 检查（已有 invoke） | 0.5d |
+| 前端：未配 Key 时点 C 类 Skill 弹窗拦截（跳转 Settings Tab 并展开 Key 编辑面板） | 2d |
+| 顶栏「未配 Key」徽章高亮 + 全局状态同步 | 1d |
+| 验收：未配 Key 时点 C 类 Skill 100% 触发引导 |  |
+
+#### M4-W16（1 周）：用量记账 + Usage Tab
+
+| 任务 | 工期 |
+|---|---|
+| Rust 端：`usage_store.rs`（SQLite 本地存储 + 90 天滚动清理） | 2d |
+| Rust 端：`llm_proxy.rs::handle_chat` 成功后同步记账 | 1d |
+| Rust 端：`handle_record_usage` + `handle_usage_summary` 端点 | 1d |
+| Web 端：Prisma migration（`UsageRecord` / `ProviderPricing` / `GuestSession`） | 1d |
+| 前端：`<UsageDashboard>`（图表 + 列表 + 导出 CSV） | 3d |
+| 前端：`<UsageMiniCard>`（嵌入 My Tab） | 1d |
+| 验收：用户生成 1 次 C 类 Skill 后 Usage Tab 立即显示 |  |
+
+#### M4-W17（1 周）：游客模式 + Web 端用量页
+
+| 任务 | 工期 |
+|---|---|
+| Rust 端：`ensure_guest_session`（生成 UUID + 机器指纹 + AES 加密存本地） | 1d |
+| Web 端：`/api/v2/user/usage` + `/api/v2/usage/sync` + `/api/v2/provider-pricing` + `/api/v2/auth/bind-guest` | 3d |
+| Web 端：游客限流中间件（50 次/天，双层校验） | 1d |
+| Web 端：`/dashboard/usage` 页面（复用桌面端 UsageDashboard 组件逻辑） | 2d |
+| 前端：用满 3 次弹注册引导弹窗 | 1d |
+| 验收：未登录用户能用全部 C 类功能，第 51 次弹注册引导 |  |
+
+#### M4-W18（1 周）：Web 端降级 + 收尾
+
+| 任务 | 工期 |
+|---|---|
+| Web 端：原 NLU 首页降为 `/skills` 子路径 + canonical tag（SEO 保留） | 2d |
+| Web 端：首页变「下载助手」落地页（桌面端下载链接 + 三步上手） | 2d |
+| 文档：AGENTS.md 同步 §10 追加桌面端 Tab 列表；helper/README.md 同步 Tab 说明 | 0.5d |
+| 文档：[HELPER_USAGE_DASHBOARD.md](./HELPER_USAGE_DASHBOARD.md) 新增：用量 Dashboard 设计文档 | 0.5d |
+| 验收：Web 端首页不再引导普通 UI 走 NLU；桌面端 5 Tab 全可用；SFTSR ≥ 90% |  |
+
+**M4 验收总收**：
+- A/C 类 Skill 桌面端完整闭环（不跳 Web 端）
+- 未配 LLM Key 时点 C 类 Skill 100% 触发引导弹窗
+- 已装 Skill 的本周消耗在 Usage Tab 准确显示
+- 游客模式：未登录用户能完整使用，50 次/天后后引导注册
+- 资源指标：助手内存 ≤ 80MB，安装包 ≤ 8MB，冷启动 ≤ 1500ms
+- Web 端首页降级到「下载助手」，原 NLU 入口保留为 `/skills` 子路径
+
 ---
 
 ## 15. 风险与开放问题
@@ -1303,6 +1928,12 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 | R9 | **新增**：反向推送被用户视为骚扰 | 中 | 中 | 默认关闭，首次开启需用户主动 |
 | R10 | **v2.0.2 新增**：C 类用户没装助手就无法体验（首页对话框会降级到启发式，效果差） | 高 | 中 | M1 加 Onboarding 引导「装助手 + 填 Key」；首页对话框弱化展示「试一下再说」按钮，先让用户尝到甜头 |
 | R11 | **v2.0.2 新增**：助手本机 HTTP 端口被其他进程占用或防火墙拦截 | 中 | 高 | 助手启动时检测端口冲突自动顺延；首次安装时引导用户放行防火墙 |
+| R12 | **v2.1 新增**：Tauri WebView 渲染多 Tab 性能差 | 中 | 中 | 用 React.lazy 拆分页面，按需加载 |
+| R13 | **v2.1 新增**：桌面端 Skills 数据从云端拉，断网时空 | 中 | 中 | seed-skills.json 本地兑底（已实现） |
+| R14 | **v2.1 新增**：用量数据本地 SQLite 损坏 | 低 | 高 | open_or_fallback（参考 KeyStore 模式），fallback 到内存 + log |
+| R15 | **v2.1 新增**：游客模式被滥用 | 中 | 中 | 单机每天 50 次生成上限（基于 anonymousId + 机器指纹） |
+| R16 | **v2.1 新增**：估算费用不准导致用户投诉 | 中 | 中 | 标注「估算，按 Provider 官方单价」，提供「按用量校准」入口 |
+| R17 | **v2.1 新增**：Web 端降级改造影响 SEO | 中 | 中 | 保留 NLU 入口到 /skills 子路径 + canonical tag |
 
 ### 15.2 开放问题
 
@@ -1315,6 +1946,11 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 | Q5 | 三交付物是否有必要统一成同一组件骨架？ | 不建议强制统一，会破坏每类的 UX |
 | Q6 | **v2.0.2 调整**：原 DeepSeek 60 RPM 限流不再适用（用户自费 Key，受用户配额限制）；改为「用户 Key 配额触顶时降级还是排队？」 | **建议**：助手侧实时读 Key 余额，触顶时降级到启发式 + 弹窗「您的 Key 余额不足，请充值或更换 Key」 |
 | Q7 | **v2.0.2 新增**：未装助手的 C 类用户首次体验如何最小化摩擦？ | **建议**：M1 上线「免 Key 试生成」（仅 1 次，平台埋单），让用户先尝到甜头，再引导装助手 |
+| Q8 | **v2.1 新增**：游客模式是否限制生成次数？ | **推荐方案**：单机每天 50 次（C 类）。备选：完全不限 / 单机每天 10 次 |
+| Q9 | **v2.1 新增**：用量数据是否上报 Web？ | **推荐方案**：本地为主 + 用户手动同步。备选：完全本地 / 实时上报 |
+| Q10 | **v2.1 新增**：Web 端首页如何处理？ | **推荐方案**：NLU 降为 /skills 子路径，首页变「下载助手」。备选：保留 NLU 首页但弱化 / 重定向到下载页 |
+| Q11 | **v2.1 新增**：B 类 OAuth 走哪种？ | **推荐方案**：系统浏览器 + 协议回桌面端（tauri-plugin-opener）。备选：桌面端内嵌 WebView |
+| Q12 | **v2.1 新增**：估算费用币种？ | **推荐方案**：CNY（按 DeepSeek/OpenAI 国内定价）。备选：USD / 多币种 |
 
 ---
 
@@ -1356,6 +1992,23 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 - [ ] SFTSR（整体）≥ 85%
 - [ ] 零安全事故
 
+### 16.4 【v2.1 新增】M4 验收
+
+- [ ] 桌面端 5 个 Tab（Home / Explore / My / Usage / Settings）全部可用，键盘导航（Home/End/Arrow）支持
+- [ ] Home Tab NLU 搜索结果与 Web 端一致（命中同一接口 `/api/v2/intent/parse`）
+- [ ] A/C 类 Skill 桌面端完整闭环（不跳 Web 端即可安装/使用）
+- [ ] B 类 Skill 桌面端点击 → 系统浏览器 OAuth → 协议回桌面端可用
+- [ ] 未配 LLM Key 时点 C 类 Skill 100% 触发引导弹窗（F20）
+- [ ] 已装 Skill 的本周消耗在 Usage Tab 准确显示
+- [ ] 估算费用 = `Σ(provider_price.input × tokens_in/1M + provider_price.output × tokens_out/1M)`
+- [ ] 游客模式：未登录用户能完整使用 C 类，50 次/天后引导注册（F19）
+- [ ] Web 端「我的用量」页（`/dashboard/usage`）可查询，游客与登录用户均可用
+- [ ] `/api/v2/usage/sync` 幂等去重生效（重复上报 `deduped` 计数正确）
+- [ ] PRD v2.0 §5.2 红线被 §5.3 新边界声明替换，AGENTS.md / helper/README.md / HELPER_USAGE_DASHBOARD.md 同步更新
+- [ ] Web 端首页降级到「下载助手」，原 NLU 入口保留为 `/skills` 子路径（含 canonical tag）
+- [ ] 资源指标：助手内存空闲 ≤ 80MB，安装包 ≤ 8MB，冷启动 ≤ 1500ms
+- [ ] 用量本地存储 90 天滚动清理生效
+
 ---
 
 ## 17. 附录
@@ -1364,10 +2017,13 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 
 | 文档 | 关系 |
 |---|---|
-| [ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md](./ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md) | **v1.0 归档**，技术细节（剧本 DSL/扫描规则） |
+| [ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md](./ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md) | **本文档 v2.1**（M4 桌面端主客户端化） |
+| [HELPER_USAGE_DASHBOARD.md](./HELPER_USAGE_DASHBOARD.md) | **v2.1 新增**：用量 Dashboard 设计文档（F18） |
+| [.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md](../../.qoder/plans/桌面端主客户端化改造方案_a99a4d27.md) | **v2.1 新增**：M4 改造计划总纲（[§5.3](#53-桌面端主客户端化新边界替换-v20-52-红线) 依据） |
 | [SKILLHUB_V3_UPGRADE_REQUIREMENTS.md](./SKILLHUB_V3_UPGRADE_REQUIREMENTS.md) | 平行路线 |
 | [DUAL_MODE_ARCHITECTURE.md](./DUAL_MODE_ARCHITECTURE.md) | 自主管理 vs 全网搜索 |
-| [AGENTS.md](../../AGENTS.md) | 仓库根入口 |
+| [AGENTS.md](../../AGENTS.md) | 仓库根入口（v2.1 同步 §8/§10） |
+| [apps/helper/README.md](../../apps/helper/README.md) | 桌面助手工程说明（v2.1 同步 5-Tab） |
 
 ### 17.2 关键术语
 
@@ -1375,12 +2031,16 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 |---|---|
 | **Skill Category** | A（环境依赖）/ B（数据授权）/ C（内容生成）三分类 |
 | **Deliverable** | 交付物：A=操作指令包 / B=OAuth 连接器 / C=最终结果 |
-| **Helper** | 桌面助手（Tauri），**仅服务 A 类** |
+| **Helper** | 桌面助手（Tauri），**v2.1 起为「主客户端」**（v2.0 表述为「仅服务 A 类」） |
 | **Playbook** | 安装剧本 |
 | **SFTSR** | Skill First-Try Success Rate，北极星指标 |
 | **OISR** | One-Click Install Success Rate，A 类子指标 |
 | **Intent Tag** | LLM 解析出的功能意图标签 |
 | **Software Tag** | 软件标签 |
+| **anonymousId**（v2.1 新增） | 桌面端启动时生成的 UUID v4，作为游客身份标识，升级注册后与 userId 关联 |
+| **GuestSession**（v2.1 新增） | 云端 `GuestSession` 表，存储 anonymousId + 机器指纹 + 升级绑定关系 |
+| **UsageRecord**（v2.1 新增） | 单次 LLM 调用的元数据记录（不含输入/输出内容），用于用量 Dashboard |
+| **ProviderPricing**（v2.1 新增） | 平台维护的 Provider/Model 单价表，用于估算费用 |
 
 ### 17.3 参考项目
 
@@ -1391,7 +2051,7 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 - [Anthropic Agent Skills](https://agentskills.io)
 - [MCP Registry](https://registry.modelcontextprotocol.io)
 
-### 17.4 待补充内容（v2.1）
+### 17.4 待补充内容（v2.1 → v2.2 候选）
 
 - [ ] 首页对话框 UI 详细线框图
 - [ ] 三类详情页的视觉规范
@@ -1399,7 +2059,13 @@ M3 (W10-W12) ──►  B 类（OAuth）+ 反向推送 + 运行时嵌入
 - [ ] LLM Prompt 模板 v1（基于首批 30 个真实 query 调优）
 - [ ] 隐私协议 / 用户协议文案
 - [ ] A/B 测试方案（首页对话框 vs 传统搜索框）
+- **v2.1 追加**：
+  - [ ] 桌面端 5-Tab 视觉规范（Home / Explore / My / Usage / Settings）
+  - [ ] `<SkillDetailDialog>` 三形态桌面端适配稿（A/B/C）
+  - [ ] `<UsageDashboard>` 桌面端图表选型与交互细节
+  - [ ] 桌面端 Usage 导出 CSV 格式样例
+  - [ ] 游客模式引导弹窗文案（中英文）
 
 ---
 
-> **下一步**：本文档通过审核后，按 [§14 实施路线图](#14-实施路线图与里程碑) 启动 M1。**M1 优先做 C 类 + NLU 入口**（不需要装任何东西的 Skill），最快速度拿到 SFTSR 反馈。
+> **下一步**：本文档 v2.1 通过审核后，按 [§14.4 M4 实施路线图](#144-v21-新增m4桌面端主客户端化w13-w186-周) 启动 M4。**M4 优先做桌面端 5-Tab 体系**（W13-W14），最快速度验证「桌面端主客户端」用户体验。
