@@ -248,14 +248,30 @@ export default function App() {
         setAnonymousId(id);
       })
       .catch(() => {});
-    // M4：首次启动拿游客 anonymous_id（写入 LlmGateway 缓存）
-    invoke<{ anonymous_id: string }>('ensure_guest_session')
-      .then((g) => {
-        if (g?.anonymous_id && !session?.user_id) {
-          setAnonymousId(g.anonymous_id);
-        }
-      })
-      .catch(() => {});
+    // M4：首次启动拿游客 anonymous_id
+    // MEDIUM #1（CodeReview 2026-09）：后端 ensure_guest_session 每次返回新 UUID v4，
+    // 云端 GuestSession 表会堆积 machineFingerprint 相同但 anonymousId 全不相同的“僵尸行”。
+    // 修复：前端用 localStorage 缓存 anonymous_id，同一台机器仅首次启动调一次。
+    // 仅在匿名（未绑定 Web 账号）时需要这个 ID；已绑定时以 userId 为主。
+    const ANON_ID_KEY = 'helper.anonymous_id';
+    const cachedAnonId =
+      typeof window !== 'undefined' ? window.localStorage.getItem(ANON_ID_KEY) : null;
+    if (cachedAnonId && !session?.user_id) {
+      setAnonymousId(cachedAnonId);
+    } else {
+      invoke<{ anonymous_id: string }>('ensure_guest_session')
+        .then((g) => {
+          if (g?.anonymous_id && !session?.user_id) {
+            setAnonymousId(g.anonymous_id);
+            try {
+              window.localStorage.setItem(ANON_ID_KEY, g.anonymous_id);
+            } catch {
+              // localStorage 被禁用 / 容量满：仅本次会话有效，下次启动重试
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   // M4：键盘快捷键 Cmd/Ctrl + 1..5 切换 Tab

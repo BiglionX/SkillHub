@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '@/lib/auth-config';
+import { rateLimiter } from '@/lib/middleware/rate-limit';
 
 const prisma = new PrismaClient();
 
@@ -66,6 +67,28 @@ const providerPricingDelegate = (prisma as any).providerPricing as any;
 export async function POST(req: NextRequest) {
   const session = await auth();
   const userId = session?.user?.id ?? null;
+
+  // MEDIUM #5（CodeReview 2026-09）：游客匿名接口需 IP 限流防滥用。
+  // 登录用户走 userId 限流（更宽松），匿名游客走 IP 限流。
+  // 未配置 Upstash 时 RateLimiter 自动放行（fail-open），不阻塞 CI / 本地开发。
+  const rateLimitId = rateLimiter.getIdentifier(req, userId ?? undefined);
+  const rl = await rateLimiter.check(rateLimitId, !!userId);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      {
+        error: 'too_many_requests',
+        message: `用量上报过于频繁，请 ${Math.max(1, rl.reset - Math.floor(Date.now() / 1000))}s 后重试`,
+      },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(rl.limit),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(rl.reset),
+        },
+      },
+    );
+  }
 
   let body: IncomingBody;
   try {

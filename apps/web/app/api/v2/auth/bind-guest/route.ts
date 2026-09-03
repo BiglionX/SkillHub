@@ -58,7 +58,25 @@ export async function POST(req: NextRequest) {
 
   const mergeRecords = body.merge_records !== false; // 默认 true
 
-  // 1. upsert GuestSession（如果客户端没上报过，也允许 bind 时新建）
+  // 1. 校验 anonymousId 归属（MEDIUM #6 / CodeReview 2026-09）：
+  //    避免 A 用户把已属 B 用户的 anonymousId 偷走合并 record。
+  //    允许：owner 不存在、owner 是当前 user。拒绝：owner 是其他 user。
+  //    接受罕见的 findUnique → upsert 之间被并发 bind 抢占（Prisma 事务隔离
+  //    + unique 约束保证不会被静默覆盖，被抢占方下次 bind 会被新规则拦下）。
+  const existing = await guestSessionDelegate.findUnique({
+    where: { anonymousId: body.anonymous_id },
+    select: { userId: true },
+  });
+  if (existing?.userId && existing.userId !== userId) {
+    return NextResponse.json(
+      { error: 'anonymous_id 已归属其他用户，无法关联' },
+      { status: 403 },
+    );
+  }
+
+  // 2. upsert GuestSession
+  //    - update 分支不再覆盖 bindAt（MEDIUM #2，保留首次绑定时间）
+  //    - update 分支不再覆盖 userId（MEDIUM #6，已在上一步确认归属 = 当前 user）
   const now = new Date();
   const guestRow = await guestSessionDelegate.upsert({
     where: { anonymousId: body.anonymous_id },
@@ -73,8 +91,6 @@ export async function POST(req: NextRequest) {
       lastSeenAt: now,
     },
     update: {
-      userId,
-      bindAt: now,
       lastSeenAt: now,
       ...(body.machine_fingerprint ? { machineFingerprint: body.machine_fingerprint } : {}),
       ...(body.helper_version ? { helperVersion: body.helper_version } : {}),
