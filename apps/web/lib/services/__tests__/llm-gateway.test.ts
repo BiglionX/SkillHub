@@ -25,6 +25,9 @@ describe('LlmGateway', () => {
 
   afterEach(() => {
     process.env = originalEnv;
+    // 清理 window 注入的端口（每个用例独立）
+    delete (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__;
+    localStorage.removeItem('skillhub-helper-port');
   });
 
   describe('dev 模式 mock', () => {
@@ -85,6 +88,9 @@ describe('LlmGateway', () => {
     it('NODE_ENV=production + SKILLHUB_DEV_MOCK=0 → 调 fetch 探测助手', async () => {
       process.env.NODE_ENV = 'production';
       delete process.env.SKILLHUB_DEV_MOCK;
+      // 注入端口（jsdom 下直接写 window 属性，不要用 global.window = {...}，
+      //   后者在 jsdom 是 no-op，因为 global === window）
+      (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ = 12345;
       (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED 127.0.0.1'));
 
       const llm = new LlmGateway();
@@ -95,24 +101,28 @@ describe('LlmGateway', () => {
       });
 
       expect(result.ok).toBe(false);
+      // D6 决策：助手失败 + 云端未启用 → chat() 统一返回 service_disabled（调用方降级到启发式）
+      // 验证 fetch 真的被调到了（否则就是 dev mock 走捷径）
+      expect(global.fetch).toHaveBeenCalled();
       if (!result.ok) {
-        expect(result.reason).toBe('helper_offline');
+        expect(result.reason).toBe('service_disabled');
       }
     });
 
-    it('助手返回 503 → helper_no_key', async () => {
+    it('助手返回 503 → service_disabled（chat 统一降级）', async () => {
       process.env.NODE_ENV = 'production';
       delete process.env.SKILLHUB_DEV_MOCK;
+      // 注入端口，让 fetch 真的被调到
+      (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ = 12345;
       // 端口发现成功 + 助手 chat 返回 503
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 503,
-          json: async () => ({
-            reason: 'helper_no_key',
-            message: '未配置 Key',
-          }),
-        });
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          reason: 'helper_no_key',
+          message: '未配置 Key',
+        }),
+      });
 
       const llm = new LlmGateway();
       const result = await llm.chat({
@@ -121,15 +131,17 @@ describe('LlmGateway', () => {
       });
 
       expect(result.ok).toBe(false);
+      expect(global.fetch).toHaveBeenCalled();
+      // D6：chat() 不区分 helper 内部原因，统一返回 service_disabled
       if (!result.ok) {
-        expect(result.reason).toBe('helper_no_key');
+        expect(result.reason).toBe('service_disabled');
       }
     });
 
-    it('助手返回 200 但没 ok → 走 service_disabled', async () => {
+    it('助手 ECONNREFUSED → 走 service_disabled', async () => {
       process.env.NODE_ENV = 'production';
       delete process.env.SKILLHUB_DEV_MOCK;
-      // 模拟助手可用但 chat 失败后的兜底（实际上 chat 失败就是 ok:false）
+      (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ = 12345;
       (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
 
       const llm = new LlmGateway();
@@ -141,7 +153,7 @@ describe('LlmGateway', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         // 助手连不上，最终降级到 service_disabled
-        expect(['helper_offline', 'service_disabled']).toContain(result.reason);
+        expect(result.reason).toBe('service_disabled');
       }
     });
   });
@@ -155,12 +167,11 @@ describe('LlmGateway', () => {
       expect(status.hasKey).toBe(false);
     });
 
-    it('助手返回 200 + hasKey=true', async () => {
+    it('window 注入端口 → 助手返回 200 + hasKey=true', async () => {
       process.env.NODE_ENV = 'production';
-      // 先注入端口
-      (global as unknown as { window: { __SKILLHUB_HELPER_PORT__: number } }).window = {
-        __SKILLHUB_HELPER_PORT__: 12345,
-      };
+      // 关键：直接写 window 的属性（jsdom 下 window === global，
+      //   global.window = {...} 等价于 window.window = {...}，不会真的注入端口）
+      (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ = 12345;
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: async () => ({ online: true, hasKey: true, provider: 'deepseek' }),
@@ -170,7 +181,6 @@ describe('LlmGateway', () => {
       expect(status.online).toBe(true);
       expect(status.hasKey).toBe(true);
       expect(status.provider).toBe('deepseek');
-      delete (global as unknown as { window?: unknown }).window;
     });
 
     it('localStorage 端口缓存命中', async () => {
@@ -185,7 +195,6 @@ describe('LlmGateway', () => {
       const status = await llm.probeHelper();
       expect(status.online).toBe(true);
       expect(status.port).toBe(54321);
-      localStorage.removeItem('skillhub-helper-port');
     });
   });
 });

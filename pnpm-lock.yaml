@@ -87,6 +87,9 @@ importers:
 
   apps/helper:
     dependencies:
+      '@skillhub/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@tauri-apps/api':
         specifier: ^2.0.0
         version: 2.11.1
@@ -96,6 +99,9 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2.5.4
         version: 2.5.5
+      lucide-react:
+        specifier: ^0.469.0
+        version: 0.469.0(react@19.2.8)
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -130,6 +136,9 @@ importers:
       '@skillhub/search-sdk':
         specifier: workspace:*
         version: link:../../packages/search-sdk
+      '@skillhub/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@skillhub/widget':
         specifier: workspace:*
         version: link:../../packages/widget
@@ -319,7 +328,11 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      react:
+        specifier: ^18 || ^19
+        version: 19.2.8
 
   packages/utils: {}
 

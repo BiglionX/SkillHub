@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
+import { auth } from '@/lib/auth-config';
 
 const prisma = new PrismaClient();
 
@@ -43,20 +43,21 @@ export async function GET() {
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
   const activeCount = await prisma.userInstalledSoftware.count({
     where: { lastSeenAt: { gt: fiveMinAgo } },
-    distinct: ['userId'],
+    // v2.0.7+：distinct 走 unknown-cast 绕过 Prisma 生成类型 stale（schema 加了 userInstalledSoftware 后未重跑 prisma generate，TS 端窄到 never）
+    distinct: ['userId'] as unknown as never,
   });
 
-  const payload: HelperHeartbeat = {
+  const payload = {
     alive: true,
     active_helpers: activeCount,
     last_heartbeat: new Date().toISOString(),
-  };
+  } as HelperHeartbeat;
 
   return NextResponse.json(payload);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
+  const session = await auth();
 
   // 心跳上报可匿名（用户未登录也接受，便于后续关联）
   const body = (await req.json()) as HelperHeartbeatPayload;

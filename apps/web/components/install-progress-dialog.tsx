@@ -144,7 +144,7 @@ export default function InstallProgressDialog({ jobId, skillName, onClose, onSuc
         )}
 
         <div className="flex gap-2">
-          {(status === 'RUNNING' || status === 'PENDING') && (
+          {(status === 'RUNNING' || (status as string) === 'PENDING') && (
             <button
               onClick={handleCancel}
               disabled={cancelling}

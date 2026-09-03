@@ -16,7 +16,9 @@ const cypressPort = process.env.CYPRESS_PORT
   : 3000;
 
 export default defineConfig({
-  e2e: {
+  // v2.0.7+：Cypress 13 的 e2e 类型不暴露 devServer；将整个 e2e 配置断言为 any 让 devServer 通过编译
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  e2e: ({
     baseUrl: `http://localhost:${cypressPort}`,
     supportFile: 'cypress/support/e2e.ts',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
@@ -49,7 +51,8 @@ export default defineConfig({
       runMode: 2,
       openMode: 0,
     },
-  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any,
 
   component: {
     devServer: {

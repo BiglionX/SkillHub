@@ -9,7 +9,12 @@ import { Namespace } from '@/types';
 export default function NamespacesPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newNamespace, setNewNamespace] = useState({
+  const [newNamespace, setNewNamespace] = useState<{
+    name: string;
+    slug: string;
+    description: string;
+    type: 'PERSONAL' | 'TEAM' | 'GLOBAL';
+  }>({
     name: '',
     slug: '',
     description: '',
@@ -254,7 +259,13 @@ export default function NamespacesPage() {
                 <select
                   id="type"
                   value={newNamespace.type}
-                  onChange={(e) => setNewNamespace({ ...newNamespace, type: e.target.value })}
+                  onChange={(e) =>
+                                      setNewNamespace({
+                                        ...newNamespace,
+                                        // v2.0.7+：select 下拉的 type 受枚举约束；onChange 给 string，需 cast
+                                        type: e.target.value as 'PERSONAL' | 'TEAM' | 'GLOBAL',
+                                      })
+                                    }
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value="PERSONAL">个人</option>

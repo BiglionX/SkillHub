@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
+import { auth } from '@/lib/auth-config';
 import crypto from 'node:crypto';
 
 const prisma = new PrismaClient();
@@ -19,7 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: oldJobId } = await params;
-  const session = await getServerSession();
+  const session = await auth();
 
   const oldJob = await prisma.installJob.findUnique({
     where: { id: oldJobId },

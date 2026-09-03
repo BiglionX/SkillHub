@@ -301,9 +301,12 @@ export class LlmGateway {
     const port = await this.discoverHelperPort();
     if (!port) return { online: false, hasKey: false };
 
+    // 用 AbortController（不用 AbortSignal.timeout，保证与 tryHelperProxy 一致 + 兼容 jsdom）
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
     try {
       const res = await fetch(`http://127.0.0.1:${port}/llm/status`, {
-        signal: AbortSignal.timeout(1500),
+        signal: controller.signal,
       });
       if (!res.ok) return { online: true, hasKey: false };
       const data = await res.json();
@@ -315,6 +318,8 @@ export class LlmGateway {
       };
     } catch {
       return { online: false, hasKey: false };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

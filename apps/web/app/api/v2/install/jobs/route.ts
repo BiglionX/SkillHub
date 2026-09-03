@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'node:crypto';
-import { getServerSession } from 'next-auth';
+// v2.0.7+：SkillHub 已从 NextAuth.js 迁移到 NvwaX OIDC，getServerSession 替换为 auth()。
+// 两者签名等价（返回 Session | null），保留原 next-auth 风格调用。
+import { auth } from '@/lib/auth-config';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +19,7 @@ const prisma = new PrismaClient();
  *   5. Web 前端用 iframe.src 唤起助手
  */
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
+  const session = await auth();
   const body = await req.json();
   const slug: string = body.slug;
   const version: string = body.version || '1.0.0';
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
  * 列出当前用户的安装任务
  */
 export async function GET(req: NextRequest) {
-  const session = await getServerSession();
+  const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: '未登录' }, { status: 401 });
   }

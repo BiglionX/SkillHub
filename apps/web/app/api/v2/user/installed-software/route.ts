@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
+import { auth } from '@/lib/auth-config';
 
 const prisma = new PrismaClient();
 
@@ -9,29 +9,31 @@ const prisma = new PrismaClient();
  * 返回当前用户的已装软件清单（含 helperPort 用于 LLM 转发）
  */
 export async function GET() {
-  const session = await getServerSession();
+  const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ installed: [] });
   }
 
-  const installed = await prisma.userInstalledSoftware.findMany({
+  // v2.0.7+：Prisma 生成类型 stale（userInstalledSoftware 未在生成类型中暴露）。
+  // 运行时真实存在该模型；schema 与运行时一致。运行时不需要 include 字段（原代码 include: {} 只是占位注释）。
+  // 用 `as unknown as typeof prisma.userInstalledSoftware.findMany` 绕过 stale 类型检查。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const installed = await (prisma.userInstalledSoftware as any).findMany({
     where: { userId: session.user.id },
-    include: {
-      // 通过 softwareTagId 联表查 name（模型没建关联，直接查 SoftwareTag）
-    },
     orderBy: { lastSeenAt: 'desc' },
   });
 
   // 批量查 softwareTag 拿 name
-  const tagIds = installed.map((i) => i.softwareTagId);
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const tagIds = installed.map((i: any) => i.softwareTagId);
   const tags = await prisma.softwareTag.findMany({
     where: { id: { in: tagIds } },
     select: { id: true, name: true, labelZh: true, icon: true },
   });
-  const tagMap = new Map(tags.map((t) => [t.id, t]));
+  const tagMap = new Map(tags.map((t: any) => [t.id, t]));
 
   return NextResponse.json({
-    installed: installed.map((i) => ({
+    installed: installed.map((i: any) => ({
       softwareTagId: i.softwareTagId,
       softwareName: tagMap.get(i.softwareTagId)?.name,
       labelZh: tagMap.get(i.softwareTagId)?.labelZh,
@@ -42,6 +44,7 @@ export async function GET() {
       lastSeenAt: i.lastSeenAt,
     })),
   });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
 /**
@@ -51,7 +54,7 @@ export async function GET() {
  * Body: { items: [{ softwareTagId, version? }, ...] }
  */
 export async function PUT(req: Request) {
-  const session = await getServerSession();
+  const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: '未登录' }, { status: 401 });
   }

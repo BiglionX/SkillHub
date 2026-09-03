@@ -84,13 +84,13 @@ export default defineConfig({
    *   - 端口可通过 env PLAYWRIGHT_PORT 覆盖
    *   - baseURL 跟着端口动态变化（不再写死 3000）
    */
+  // v2.0.7+：Playwright 1.62 不暴露 healthcheck 字段，但运行时支持（早期版本字段）；移除该字段避免 strict 类型错误。
   webServer: {
     command: customPort ? `pnpm dev -- --port ${e2ePort}` : 'pnpm dev',
     cwd: __dirname,
     // Playwright 1.62: webServer.port 和 url 是互斥的（提供 port 则 Playwright 用 http://localhost:port，
     // 否则用 url）。我们用 url 走 healthcheck 探针更可靠。
-    url: new URL(`/api/v2/healthcheck`, `http://localhost:${e2ePort}`),
-    healthcheck: '/api/v2/healthcheck',
+    url: `http://localhost:${e2ePort}/api/v2/healthcheck`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     stdout: 'pipe' as const,

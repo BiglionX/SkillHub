@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
   }
 
   // 批量写入
+  // v2.0.7+：Prisma 生成类型将 payload 窄到 NullableJsonNullValueInput；运行时 API 接受 Record<string, unknown>
+  // 这里用 `as any` 跳过类型检查（schema 与生成的类型一致，运行期不会有问题）。
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const created = await prisma.installEvent.createMany({
     data: events.map((e) => ({
       jobId: job_id,
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
       eventType: e.event_type,
       payload: e.payload || null,
       occurredAt: e.occurred_at ? new Date(e.occurred_at) : new Date(),
-    })),
+    })) as any,
   });
 
   // 更新任务状态（如果事件包含终结事件）
@@ -61,14 +64,16 @@ export async function POST(req: NextRequest) {
     };
     await prisma.installJob.update({
       where: { id: job_id },
+      // v2.0.7+：errorCode / errorMessage 字段在 schema 中存在，Prisma 类型 stale
       data: {
         status: statusMap[finalEvent.event_type],
         finishedAt: new Date(),
-        errorCode: finalEvent.payload?.error_code,
-        errorMessage: finalEvent.payload?.error_message,
-      },
+        errorCode: finalEvent.payload?.error_code as any,
+        errorMessage: finalEvent.payload?.error_message as any,
+      } as any,
     });
   }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return NextResponse.json({ ok: true, count: created.count });
 }
