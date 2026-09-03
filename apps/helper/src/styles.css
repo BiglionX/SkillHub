@@ -13,8 +13,9 @@ html, body, #root {
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', sans-serif;
-  background: #f9fafb;
-  color: #111827;
+  /* v2.0.7+：与 helper-glass.css 的 .glass-canvas 对齐，避免 body 白底从透明区域透出 */
+  background: #050816;
+  color: #f1f5f9;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -87,10 +88,15 @@ input, textarea {
 .max-w-2xl { max-width: 672px; }
 
 .flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
 .flex-1 { flex: 1; }
+.gap-1 { gap: 4px; }
 .gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
 .gap-4 { gap: 16px; }
 
 .space-y-4 > * + * { margin-top: 16px; }

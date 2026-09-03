@@ -1,0 +1,777 @@
+/* SkillHub Helper 玻璃拟态系统（v2.0.7+ 深色版，按 plan §1 设计 token）
+ *
+ * 设计原则（与 apps/web/styles/glass.css 对齐）：
+ *   1. 深色基底 #050816 系列（plan §1）
+ *   2. 玻璃卡片：rgba(255,255,255,0.05) + backdrop-blur(20px) + rgba(255,255,255,0.1) 边框
+ *   3. 主色青蓝 #06b6d4 (cyan-500)，紫粉点缀 #a855f7，强调黄 #fbbf24
+ *   4. 字体色：浅色 slate-100/200/400（高对比 + 可读）
+ *
+ * 参考 plan：
+ *   - 玻璃卡片：rgba(255,255,255,0.05) + backdrop-blur(20px) + 1px rgba(255,255,255,0.1) 边框
+ *   - 主色青蓝 #06b6d4，强调黄 #fbbf24，点缀紫粉 #a855f7
+ *   - 左侧窄导航列 + 右侧主区
+ *
+ * 约束：桌面端禁用 Tailwind，本文件纯手写 utility 类。
+ * 与 styles.css 互补：styles.css 提供 baseline 颜色 + 字体 + layout，
+ * 本文件提供深色玻璃化视觉。
+ */
+
+/* ============== 颜色 token（深色版） ============== */
+:root {
+  /* 品牌主色：青蓝 cyan-500 */
+  --g-cyan-300: #67e8f9;
+  --g-cyan-400: #22d3ee;
+  --g-cyan-500: #06b6d4;
+  --g-cyan-600: #0891b2;
+  /* 点缀色：紫粉 violet/purple */
+  --g-violet-400: #c084fc;
+  --g-violet-500: #a855f7;
+  --g-pink-500: #ec4899;
+  /* 强调色：金黄 amber */
+  --g-amber-400: #fbbf24;
+  --g-amber-500: #f59e0b;
+  /* 状态色：success/danger/neutral */
+  --g-green-400: #4ade80;
+  --g-green-500: #22c55e;
+  --g-red-400: #f87171;
+  --g-red-500: #ef4444;
+  --g-blue-500: #3b82f6;
+
+  /* 深色基底（plan §1 "#050816 系列"） */
+  --g-bg-base: #050816;
+  --g-bg-canvas: #0a0f24;
+  --g-bg-card: rgba(255, 255, 255, 0.05);
+  --g-bg-card-hover: rgba(255, 255, 255, 0.08);
+  --g-bg-card-soft: rgba(255, 255, 255, 0.03);
+  --g-bg-elevated: rgba(255, 255, 255, 0.08);
+  --g-border: rgba(255, 255, 255, 0.1);
+  --g-border-strong: rgba(255, 255, 255, 0.15);
+  --g-border-cyan: rgba(6, 182, 212, 0.4);
+
+  /* 文字色（深色背景用浅色文字） */
+  --g-text-primary: #f1f5f9; /* slate-100 */
+  --g-text-secondary: #cbd5e1; /* slate-300 */
+  --g-text-muted: #94a3b8; /* slate-400 */
+  --g-text-faint: #64748b; /* slate-500 */
+  --g-text-link: #22d3ee; /* cyan-400 */
+
+  /* 发光 / 阴影（深色版增强 cyan glow） */
+  --g-glow-cyan: 0 0 24px rgba(6, 182, 212, 0.4);
+  --g-glow-cyan-sm: 0 0 12px rgba(6, 182, 212, 0.3);
+  --g-glow-cyan-lg: 0 0 40px rgba(6, 182, 212, 0.5);
+  --g-glow-violet: 0 0 24px rgba(168, 85, 247, 0.4);
+  --g-glow-amber: 0 0 20px rgba(251, 191, 36, 0.4);
+}
+
+/* ============== Canvas（深色基底 + 粒子光感） ============== */
+.glass-canvas {
+  background:
+    /* cyan 粒子光斑（左上） */
+    radial-gradient(ellipse 50% 40% at 15% 10%, rgba(6, 182, 212, 0.18), transparent 60%),
+    /* 紫粉粒子光斑（右下） */
+    radial-gradient(ellipse 40% 35% at 85% 90%, rgba(168, 85, 247, 0.15), transparent 60%),
+    /* 强调黄粒子光斑（中上） */
+    radial-gradient(ellipse 30% 20% at 60% 5%, rgba(251, 191, 36, 0.08), transparent 70%),
+    /* 深色基底 */
+    linear-gradient(180deg, var(--g-bg-base) 0%, var(--g-bg-canvas) 100%);
+  min-height: 100vh;
+  color: var(--g-text-primary);
+}
+
+.glass-canvas-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(6, 182, 212, 0.15), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 100%, rgba(168, 85, 247, 0.12), transparent),
+    linear-gradient(180deg, #050816 0%, #0a0f24 100%);
+}
+
+/* ============== Glass Card（plan §1 核心规范） ============== */
+.glass-card {
+  background: var(--g-bg-card);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--g-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 20px;
+  transition: all 200ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card:hover {
+  background: var(--g-bg-card-hover);
+  border-color: var(--g-border-cyan);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), var(--g-glow-cyan-sm);
+}
+
+.glass-card-elevated {
+  background: var(--g-bg-elevated);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--g-border-strong);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  padding: 32px;
+}
+
+.glass-card-compact {
+  background: var(--g-bg-card);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--g-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  padding: 16px;
+}
+
+.glass-card-soft {
+  background: var(--g-bg-card-soft);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+/* ============== 顶部渐变条装饰 ============== */
+.glass-top-bar {
+  position: absolute;
+  top: 0;
+  left: 24px;
+  height: 2px;
+  width: 64px;
+  background: linear-gradient(90deg, var(--g-cyan-400), var(--g-violet-500));
+  border-radius: 0 0 2px 2px;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.6);
+}
+
+.glass-top-bar-wide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--g-cyan-400), var(--g-violet-500), var(--g-amber-400));
+  opacity: 0.8;
+}
+
+/* ============== 渐变文字 ============== */
+.gradient-text {
+  background: linear-gradient(135deg, var(--g-cyan-400), var(--g-violet-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.gradient-text-h {
+  background: linear-gradient(135deg, var(--g-cyan-400) 0%, var(--g-violet-500) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-cyan {
+  background: linear-gradient(135deg, var(--g-cyan-300), var(--g-cyan-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============== Glow 按钮 ============== */
+.glow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 16px;
+  transition: all 200ms ease;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.glow-btn-primary {
+  background: linear-gradient(135deg, var(--g-cyan-500), var(--g-violet-500));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+}
+
+.glow-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.6), var(--g-glow-cyan);
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.glow-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+}
+
+.glow-btn-ghost {
+  background: var(--g-bg-card);
+  color: var(--g-text-secondary);
+  border: 1px solid var(--g-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.glow-btn-ghost:hover:not(:disabled) {
+  background: var(--g-bg-card-hover);
+  border-color: var(--g-border-cyan);
+  color: var(--g-text-primary);
+  box-shadow: var(--g-glow-cyan-sm);
+}
+
+.glow-btn-danger {
+  background: linear-gradient(135deg, var(--g-red-500), var(--g-pink-500));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+.glow-btn-danger:hover:not(:disabled) {
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.6);
+  transform: translateY(-1px);
+}
+
+/* PR-2.1.3：amber 警告按钮，用于「重新注册」等告警 CTA。 */
+.glow-btn-warning {
+  background: linear-gradient(135deg, var(--g-amber-400), #d97706);
+  color: #1a1d29;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  font-weight: 600;
+}
+.glow-btn-warning:hover:not(:disabled) {
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.55);
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.glow-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============== Input ============== */
+.glass-input {
+  width: 100%;
+  background: var(--g-bg-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--g-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--g-text-primary);
+  transition: all 200ms ease;
+  outline: none;
+}
+
+.glass-input::placeholder {
+  color: var(--g-text-faint);
+}
+
+.glass-input:focus {
+  background: var(--g-bg-card-hover);
+  border-color: var(--g-cyan-500);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2), var(--g-glow-cyan-sm);
+}
+
+.glass-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============== Select（玻璃下拉） ============== */
+.glass-select {
+  background: var(--g-bg-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--g-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--g-text-primary);
+  transition: all 200ms ease;
+  outline: none;
+  cursor: pointer;
+}
+
+.glass-select:focus {
+  background: var(--g-bg-card-hover);
+  border-color: var(--g-cyan-500);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
+}
+
+/* ============== Status Pills（玻璃徽章） ============== */
+.glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* v2.0.7+：紧凑模式（更小 padding），替代原 Tailwind arbitrary value */
+.glass-pill-compact {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.glass-pill-cyan {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--g-cyan-300);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.glass-pill-violet {
+  background: rgba(168, 85, 247, 0.15);
+  color: var(--g-violet-400);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.glass-pill-amber {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--g-amber-400);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.glass-pill-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--g-green-400);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.glass-pill-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--g-amber-400);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.glass-pill-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--g-red-400);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.glass-pill-neutral {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--g-text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* ============== 提示条（玻璃化变体） ============== */
+.glass-hint-info {
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  color: var(--g-cyan-300);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.glass-hint-warning {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: var(--g-amber-400);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.glass-hint-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--g-red-400);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.glass-hint-success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: var(--g-green-400);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ============== 文字色（深色背景 → 浅色文字） ============== */
+.text-primary { color: var(--g-text-primary); }
+.text-secondary { color: var(--g-text-secondary); }
+.text-muted { color: var(--g-text-muted); }
+.text-faint { color: var(--g-text-faint); }
+.text-cyan { color: var(--g-text-link); }
+.text-cyan-300 { color: var(--g-cyan-300); }
+.text-cyan-400 { color: var(--g-cyan-400); }
+.text-cyan-700 { color: var(--g-cyan-500); }
+.text-violet { color: var(--g-violet-400); }
+.text-amber { color: var(--g-amber-400); }
+.text-success-700 { color: var(--g-green-400); }
+.text-warning-700 { color: var(--g-amber-400); }
+.text-danger-700 { color: var(--g-red-400); }
+.text-danger-600 { color: var(--g-red-500); }
+.text-blue-600 { color: var(--g-blue-500); }
+
+/* 兼容代码 inline style 残留的颜色 */
+.text-success-inline { color: var(--g-green-400); }
+.text-warning-inline { color: var(--g-amber-400); }
+.text-danger-inline { color: var(--g-red-400); }
+
+/* ============== Modal（深色玻璃） ============== */
+.glass-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 22, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.glass-modal {
+  background: var(--g-bg-elevated);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--g-border-strong);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), var(--g-glow-cyan-sm);
+  color: var(--g-text-primary);
+}
+
+.glass-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  background: linear-gradient(135deg, var(--g-cyan-400), var(--g-violet-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============== 顶部 banner（协议未注册，amber 暗色） ============== */
+/* PR-2.1.3：banner 自成完整 layout，包含 padding/flex/center。App.tsx 只需 `className="glass-banner-warning mb-4"`. */
+.glass-banner-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--g-amber-400);
+  font-size: 13px;
+}
+
+/* ============== Tab 激活态（深色） ============== */
+.glass-tab-active {
+  color: var(--g-cyan-400);
+  font-weight: 600;
+  border-bottom: 2px solid;
+  border-image: linear-gradient(135deg, var(--g-cyan-400), var(--g-violet-500)) 1;
+}
+
+/* ============== Scrollbar ============== */
+.glass-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.glass-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+.glass-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+.glass-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============== Toast 边框变体（按 phase 区分） ============== */
+/* v2.0.7+：ToastCard 走 glass-card-soft 背景，再叠加 phase 边框提示 */
+.glass-toast-success {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.glass-toast-danger {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.glass-toast-running {
+  border-color: rgba(6, 182, 212, 0.4);
+}
+.glass-toast-pending {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* ============== 列表项（hover 玻璃化） ============== */
+.glass-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 10px;
+  transition: all 150ms ease;
+  background: var(--g-bg-card-soft);
+  border: 1px solid transparent;
+}
+
+.glass-list-item:hover {
+  background: var(--g-bg-card);
+  border-color: var(--g-border-cyan);
+  transform: translateY(-1px);
+  box-shadow: var(--g-glow-cyan-sm);
+}
+
+/* ============== 加载旋转 ============== */
+@keyframes glass-spin {
+  to { transform: rotate(360deg); }
+}
+.glass-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(6, 182, 212, 0.3);
+  border-top-color: var(--g-cyan-400);
+  border-radius: 50%;
+  animation: glass-spin 0.8s linear infinite;
+}
+
+/* ============== 状态点（圆点徽章：绿色/灰色，inline style 用） ============== */
+.status-dot-success { background: var(--g-green-400); box-shadow: 0 0 8px var(--g-green-400); }
+.status-dot-neutral { background: var(--g-text-faint); }
+.status-dot-cyan { background: var(--g-cyan-400); box-shadow: 0 0 8px var(--g-cyan-400); }
+.status-dot-warning { background: var(--g-amber-400); box-shadow: 0 0 8px var(--g-amber-400); }
+
+/* ============== 步骤序号圆环（深色科技感） ============== */
+.glass-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--g-cyan-500), var(--g-violet-500));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+}
+
+/* ============== 标签 chip 变体（深色背景） ============== */
+.glass-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'Menlo', 'Consolas', monospace;
+  background: var(--g-bg-card);
+  border: 1px solid var(--g-border);
+  color: var(--g-text-secondary);
+}
+
+/* ============== 链接装饰 ============== */
+.text-link {
+  color: var(--g-text-link);
+  text-decoration: none;
+}
+.text-link:hover {
+  color: var(--g-cyan-300);
+  text-decoration: underline;
+}
+
+/* ============== App Layout（左侧窄导航 + 右侧主区） ============== */
+.glass-app-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+  background: var(--g-bg-base);
+  color: var(--g-text-primary);
+}
+
+@media (max-width: 720px) {
+  /* 小窗口下侧面导航折叠到顶部横向 — 桌面助手最小宽度 720+ 不会触发 */
+  .glass-app-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 左侧窄导航列 */
+.glass-sidebar {
+  background: var(--g-bg-card-soft);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-right: 1px solid var(--g-border);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.glass-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 20px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--g-border);
+}
+
+.glass-sidebar-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--g-cyan-500), var(--g-violet-500));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+}
+
+.glass-sidebar-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.glass-sidebar-brand-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glass-sidebar-brand-version {
+  font-size: 10px;
+  color: var(--g-text-faint);
+  font-family: 'Menlo', 'Consolas', monospace;
+}
+
+/* 侧边导航项 */
+.glass-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--g-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.glass-sidebar-item:hover {
+  background: var(--g-bg-card);
+  color: var(--g-text-primary);
+  border-color: var(--g-border);
+}
+
+.glass-sidebar-item-active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(168, 85, 247, 0.12));
+  color: var(--g-cyan-300);
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+}
+
+.glass-sidebar-item-active:hover {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(168, 85, 247, 0.15));
+  color: var(--g-cyan-300);
+  border-color: rgba(6, 182, 212, 0.5);
+}
+
+.glass-sidebar-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* sidebar 底部状态区 */
+.glass-sidebar-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--g-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* PR-2.1.3：sidebar 底部的 hasKey 状态条（圆点 + 文字）。 */
+.glass-sidebar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--g-bg-card);
+  border: 1px solid var(--g-border);
+  font-size: 12px;
+  color: var(--g-text-muted);
+  min-width: 0;
+}
+
+.glass-sidebar-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 右侧主区 */
+.glass-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* 主区内容区（包含 banner + 实际页面） */
+.glass-main-content {
+  flex: 1;
+  min-height: 0;
+}

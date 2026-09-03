@@ -32,6 +32,7 @@
     "@modelcontextprotocol/sdk": "^1.9.0",
     "@prisma/client": "^5.22.0",
     "@skillhub/search-sdk": "workspace:*",
+    "@skillhub/ui": "workspace:*",
     "@skillhub/widget": "workspace:*",
     "@tanstack/react-query": "^5.66.0",
     "@upstash/redis": "^1.34.3",

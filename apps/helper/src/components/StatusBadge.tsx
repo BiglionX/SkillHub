@@ -1,20 +1,21 @@
 /**
- * A 轮 #G3：StatusBadge 组件 + ToastCard 组件。
+ * StatusBadge 组件 + ToastCard 组件（v2.0.7+ 玻璃化）
  *
- * 原代码 toast 三态（succeeded / failed / running）各自写一份 inline style，
- * 颜色字面量直接复制粘贴。改造：
- * 1. 抽 StatusBadge 组件：phase + 子内容，内部按 phase 选 token
- * 2. 抽 ToastCard 组件：toast 外壳（圆角 + 边框 + 阴影 + 内边距）
- * 3. 颜色全部走 tokens.COLORS 不再 hardcode
+ * 设计 token 全部走 helper-glass.css 的 glass-pill-* 系列，避免 inline style 颜色字面量与
+ * 全局深色玻璃主题漂移。phase → tone 的映射走 @skillhub/ui 的 GLASS_PILL 单一来源，
+ * helper 与 web 同步维护（packages/ui/src/tokens/glass-classes.ts）。
  *
  * phase 与视觉映射：
- * - 'succeeded' → 绿色（✓ + 边框绿）
- * - 'failed' → 红色（✗ + 边框红）
- * - 'running' → 蓝色（progress + 边框蓝）
- * - 'pending' → 灰色（占位 / 未开始）
+ * - 'succeeded' → glass-pill-success（绿色：✓ + 边框绿）
+ * - 'failed' → glass-pill-danger（红色：✗ + 边框红）
+ * - 'running' → glass-pill-cyan（cyan 玻璃变体）
+ * - 'pending' → glass-pill-neutral（灰色占位）
+ *
+ * Toast 边框变体走 @skillhub/ui 的 HELPER_TOAST_BORDER，物理 class 仍是
+ * helper-glass.css 中的 `.glass-toast-{success,danger,running,pending}`。
  */
 
-import { COLORS } from '../tokens';
+import { GLASS_PILL, HELPER_TOAST_BORDER, type GlassTone } from '@skillhub/ui';
 
 export type StatusPhase = 'succeeded' | 'failed' | 'running' | 'pending';
 
@@ -34,57 +35,31 @@ const PHASE_ICON: Record<StatusPhase, string> = {
   pending: '○',
 };
 
-const PHASE_STYLE: Record<
-  StatusPhase,
-  { text: string; bg: string; border: string; icon: string }
-> = {
-  succeeded: {
-    text: COLORS.status.successText,
-    bg: COLORS.status.successBg,
-    border: COLORS.status.successBorder,
-    icon: COLORS.status.successIcon,
-  },
-  failed: {
-    text: COLORS.status.dangerText,
-    bg: COLORS.status.dangerBg,
-    border: COLORS.status.dangerBorder,
-    icon: COLORS.status.dangerText,
-  },
-  running: {
-    text: COLORS.status.infoText,
-    bg: COLORS.status.infoBg,
-    border: COLORS.status.infoBorder,
-    icon: COLORS.status.infoAccent,
-  },
-  pending: {
-    text: COLORS.status.neutralText,
-    bg: COLORS.status.neutralBg,
-    border: COLORS.status.neutralBorder,
-    icon: COLORS.status.neutralMuted,
-  },
+/**
+ * phase → tone 映射
+ * - running 走 cyan（helper 端 glass-pill-cyan，对应 running/running）
+ * - succeeded / failed / pending 直接对应 success / danger / neutral
+ */
+const PHASE_TO_TONE: Record<StatusPhase, GlassTone> = {
+  succeeded: 'success',
+  failed: 'danger',
+  running: 'cyan',
+  pending: 'neutral',
 };
 
+/// 紧凑模式 class（不使用 Tailwind arbitrary value，AGENTS.md 桌面端禁用 Tailwind）
+const COMPACT_CLASS = 'glass-pill-compact';
+
 export function StatusBadge({ phase, children, icon, compact = false }: StatusBadgeProps) {
-  const s = PHASE_STYLE[phase];
   const showIcon = icon ?? PHASE_ICON[phase];
+  const tone = PHASE_TO_TONE[phase];
   return (
     <span
       role="status"
       aria-label={`${phase}${children ? `：${typeof children === 'string' ? children : ''}` : ''}`}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        fontSize: 11,
-        padding: compact ? '1px 6px' : '2px 8px',
-        borderRadius: 999,
-        background: s.bg,
-        color: s.text,
-        border: `1px solid ${s.border}`,
-        whiteSpace: 'nowrap',
-      }}
+      className={`${GLASS_PILL[tone]} ${compact ? COMPACT_CLASS : ''}`}
     >
-      <span aria-hidden style={{ color: s.icon, fontWeight: 600 }}>
+      <span aria-hidden style={{ fontWeight: 600 }}>
         {showIcon}
       </span>
       {children}
@@ -101,11 +76,12 @@ interface ToastCardProps {
   ariaLive?: 'polite' | 'assertive';
 }
 
-const BORDER_COLOR: Record<StatusPhase, string> = {
-  succeeded: COLORS.status.successBorder,
-  failed: COLORS.status.dangerBorder,
-  running: COLORS.status.infoBorder,
-  pending: COLORS.status.neutralBorder,
+/// v2.0.7+：toast 外壳走 glass-card-soft（深色玻璃），叠加 glass-toast-* 边框区分 phase
+const PHASE_TO_BORDER_TONE: Record<StatusPhase, keyof typeof HELPER_TOAST_BORDER> = {
+  succeeded: 'success',
+  failed: 'danger',
+  running: 'running',
+  pending: 'pending',
 };
 
 export function ToastCard({
@@ -119,14 +95,8 @@ export function ToastCard({
     <div
       role={ariaRole}
       aria-live={ariaLive}
-      style={{
-        width,
-        padding: 14,
-        background: COLORS.surface.card,
-        border: `1px solid ${BORDER_COLOR[borderTone]}`,
-        borderRadius: 12,
-        boxShadow: COLORS.shadow.card,
-      }}
+      style={{ width }}
+      className={`glass-card-soft p-3.5 ${HELPER_TOAST_BORDER[PHASE_TO_BORDER_TONE[borderTone]]}`}
     >
       {children}
     </div>

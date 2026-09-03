@@ -128,8 +128,14 @@ pub fn run() {
     let key_store = Arc::new(KeyStore::open_or_fallback());
 
     // 启动 llm_proxy 本机 HTTP 服务（端口自动选择）
-    let proxy_state = Arc::new(LlmProxyState { key_store: key_store.clone() });
-    let proxy_handle = llm_proxy::spawn(proxy_state.clone());
+    // 修复 Tauri state not managed bug：
+    // 原 `let proxy_state = Arc::new(LlmProxyState { ... });` + `app.manage(proxy_state)` 会让
+    // Tauri 内部再次包装为 `Arc<Arc<LlmProxyState>>`，与命令签名 `State<'_, LlmProxyState>`
+    // 期望的 `Arc<LlmProxyState>` 类型不匹配，触发 "state not managed" 错误。
+    // 修正：llm_proxy::spawn 需要 Arc 自己包；app.manage 传入 LlmProxyState 值让 Tauri 自动包装。
+    let proxy_handle = llm_proxy::spawn(Arc::new(LlmProxyState {
+        key_store: key_store.clone(),
+    }));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
@@ -167,7 +173,9 @@ pub fn run() {
             }
             // 把 llm_proxy 端口号注入前端（设置页要展示）
             let port = proxy_handle.port();
-            app.manage(proxy_state);
+            app.manage(LlmProxyState {
+                key_store: key_store.clone(),
+            });
             app.manage(ProxyHandle(port));
             // A 轮 #B5：注册 JobRegistry，让 install_skill 能写入让 Web 轮询
             app.manage(jobs::JobRegistry::default());
@@ -224,6 +232,8 @@ pub fn run() {
 
 /// 给前端用的命令：返回助手基本信息（含本机 HTTP 端口号，方便 Web 端发现）
 /// A 轮修复 #A1：携带 `key_store_fallback` 状态，前台在数据目录不可写 / fallback 时给警示。
+/// 验收 UX-P0-A：同时携带 `protocol_registered`，前端 Settings Section 4 + App.tsx 顶栏 banner 据此决定是否提示「未注册」
+/// 之前只走 `get_helper_full_info` 拿，前端两处都从 `get_helper_info` 拿，字段缺失导致协议状态永远显示「未注册」。
 #[tauri::command]
 fn get_helper_info(
     handle: tauri::State<'_, ProxyHandle>,
@@ -235,6 +245,7 @@ fn get_helper_info(
         "helper_port": handle.port(),
         "key_store_fallback": state.key_store.is_fallback(),
         "key_store_fallback_reason": state.key_store.fallback_reason(),
+        "protocol_registered": protocol::is_registered(),
     })
 }
 

@@ -25,6 +25,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { Wrench } from 'lucide-react';
 import seedSkillsData from '../../resources/seed-skills.json';
 
 interface HelperInfo {
@@ -207,6 +208,15 @@ export default function Settings({
 
   // v2.0.6：种子推荐跳转失败提示（独立维度，不受 Provider 切换影响）
   const [seedError, setSeedError] = useState<string | null>(null);
+
+  // 验收 UX-P0-C：卸载 Skill 后弹 modal 展示 manual_steps。
+  // 原 v2.0.5 用 `window.confirm` 一步吃完，前后端不约定 manual_steps 是否展示；
+  // 现在明确为软卸载：modal 告知「在 X 软件里手动卸载插件」的清单 + 写明不是硬卸载。
+  const [uninstallModal, setUninstallModal] = useState<{
+    skill: InstalledSkill;
+    manual_steps: string[];
+    isError: boolean;
+  } | null>(null);
 
   // ==== 本机软件 ====
   const [scanned, setScanned] = useState<ScannedSoftware[]>([]);
@@ -445,6 +455,35 @@ export default function Settings({
     }
   };
 
+  // 验收 UX-P0-C：卸载 Skill 后展示 manual_steps。
+  // - 成功：调 `uninstall_skill` 拿 manual_steps → 弹 modal → 提示用户在目标软件内完成剩余卸载
+  // - 失败：invok 抛错不走「骗用户已卸」→ 也弹 modal，告知失败原因 + 后端返回的 manual_steps 仍有指导价值
+  // modal 关闭后才通知父组件从 jobs 中移除
+  const handleUninstall = async (s: InstalledSkill) => {
+    try {
+      const result = await invoke<{
+        slug: string;
+        kind?: string;
+        message?: string;
+        manual_steps?: string[];
+      }>('uninstall_skill', { slug: s.slug, skill: s });
+      setUninstallModal({
+        skill: s,
+        manual_steps: result.manual_steps ?? [],
+        isError: false,
+      });
+    } catch (e) {
+      // invoke 报错仍弹 modal，但标记为 isError，给用户明确的失败提示
+      setUninstallModal({
+        skill: s,
+        manual_steps: [
+          `卸载指令未送达助手。可手动尝试：\n①  在 ${s.software} 中查找插件/扩展管理页并卸载\n②  删除 ~/.skillhub-helper/.data 下该 Skill 的目录\n③  重启助手`,'[错误：'+ (typeof e === 'string' ? e : '未知错误') +']',
+        ],
+        isError: true,
+      });
+    }
+  };
+
   // v2.0.6：基于内置 seed-skills.json 构建 software_tag → 推荐列表索引。
   // 仅索引「形如 { recommended: [...] }」的业务条目，跳过顶层 schemaVersion 等元字段。
   const seedByTag = useMemo(() => {
@@ -487,63 +526,67 @@ export default function Settings({
   // v2.0.5：保留全屏体验但允许"7 天可恢复"的暂时忽略
   if (stage === 'onboarding') {
     return (
-      <div className="min-h-screen bg-blue-50 px-6 py-10">
+      // v2.0.7+：Onboarding 玻璃化
+      <div className="glass-canvas px-6 py-10 glass-scroll">
         <div className="mx-auto max-w-xl">
-          <div className="rounded-xl border border-blue-200 bg-white p-8 shadow-sm">
-            {/* surrogate pair: U+1F6E0 = 🔧 */}
-            <div className="mb-4 text-5xl">{"\uD83D\uDEE0"}</div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900">欢迎使用 SkillHub Helper</h1>
-            <p className="mb-6 text-sm leading-relaxed text-gray-600">
+          <div className="glass-card-elevated relative">
+            <div className="glass-top-bar-wide" />
+            {/* v2.0.7+：Onboarding 顶部 icon 走 lucide（之前用 🔧 surrogate pair，深色玻璃对比差） */}
+            <div className="mb-4 text-cyan-400">
+              <Wrench size={48} strokeWidth={1.5} />
+            </div>
+            <h1 className="mb-2 text-2xl font-bold gradient-text-h">欢迎使用 SkillHub Helper</h1>
+            <p className="text-muted mb-6 text-sm leading-relaxed">
               桌面助手负责三件事：① 转发 LLM 调用 ② 扫描你装了哪些软件 ③ 推荐并一键安装适用 Skills。
               <br />
               您的 API Key 仅 AES 加密存储在本机，<strong>不会上传到任何服务器</strong>。
             </p>
             <ol className="mb-6 space-y-3">
-              <li className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">1</span>
+              <li className="flex items-start gap-3 glass-card-soft mb-0">
+                <span className="glass-step-num">1</span>
                 <div>
-                  <div className="font-medium text-gray-900">填入 LLM Key</div>
-                  <div className="text-xs text-gray-500">推荐 DeepSeek（价格低、中文强）</div>
+                  <div className="text-primary font-medium">填入 LLM Key</div>
+                  <div className="text-muted text-xs">推荐 DeepSeek（价格低、中文强）</div>
                 </div>
               </li>
-              <li className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">2</span>
+              <li className="flex items-start gap-3 glass-card-soft mb-0">
+                <span className="glass-step-num">2</span>
                 <div>
-                  <div className="font-medium text-gray-900">扫描本机软件</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-primary font-medium">扫描本机软件</div>
+                  <div className="text-muted text-xs">
                     保存 Key 后自动触发 · 检测你装了哪些 Photoshop / VSCode / Blender 等
                   </div>
                 </div>
               </li>
-              <li className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">3</span>
+              <li className="flex items-start gap-3 glass-card-soft mb-0">
+                <span className="glass-step-num">3</span>
                 <div>
-                  <div className="font-medium text-gray-900">去 Web 端找 Skills</div>
-                  <div className="mb-2 text-xs text-gray-500">
+                  <div className="text-primary font-medium">去 Web 端找 Skills</div>
+                  <div className="text-muted mb-2 text-xs">
                     桌面端不负责推荐/选择，到 skillhub.proclaw.cc 用对话框描述需求
                   </div>
                   <button
                     type="button"
                     onClick={() => handleOpenWeb()}
-                    className="rounded border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                    className="glow-btn-ghost px-3 py-1 text-xs"
                   >
                     打开 Web 端 →
                   </button>
                 </div>
               </li>
             </ol>
-            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="glass-hint-warning mb-4">
               <strong>职责边界</strong>：本助手仅负责①转发 LLM Key、②扫描本机软件、③上报清单、④跑安装剧本。
               推荐 &amp; 选择安装在 <strong>Web 端</strong>完成——这是设计选择，不是在桌面端做不了。
             </p>
 
             {/* Onboarding 阶段直接展示 Key 编辑表单，让用户一口气填完 */}
-            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="glass-card-soft mb-4">
               <div className="mb-2 flex items-center gap-2">
                 <select
                   value={activeProvider}
                   onChange={(e) => setActiveProvider(e.target.value as Provider)}
-                  className="flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  className="flex-1 glass-select text-sm"
                 >
                   {PROVIDERS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -555,7 +598,7 @@ export default function Settings({
                   <button
                     type="button"
                     onClick={() => handleOpenDocs(currentProvider.docsUrl)}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-cyan-400 hover:underline"
                   >
                     {openingDocs ? '打开中…' : '获取 Key →'}
                   </button>
@@ -566,17 +609,13 @@ export default function Settings({
                 placeholder={currentProvider.placeholder}
                 value={keys[activeProvider]}
                 onChange={(e) => setKeys({ ...keys, [activeProvider]: e.target.value })}
-                className="mb-2 w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                className="glass-input mb-2 text-sm"
               />
               {docsError && (
-                <p className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                  {docsError}
-                </p>
+                <p className="glass-hint-warning mb-2 text-xs">{docsError}</p>
               )}
               {saveError && (
-                <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
-                  {saveError}
-                </p>
+                <p className="glass-hint-danger mb-2 text-xs">{saveError}</p>
               )}
               {/* v2.0.5：补 Test 反馈（与主控台一致），避免首次配 Key 盲存验证不生效 */}
               {testResult?.ok && (
@@ -590,22 +629,20 @@ export default function Settings({
                 </div>
               )}
               {testResult && !testResult.ok && (
-                <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
-                  ✗ {testResult.error}
-                </p>
+                <p className="glass-hint-danger mb-2 text-xs">✗ {testResult.error}</p>
               )}
               <div className="flex gap-2">
                 <button
                   onClick={handleTest}
                   disabled={!keys[activeProvider] || testing}
-                  className="w-16 shrink-0 rounded bg-gray-100 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="glow-btn-ghost w-16 shrink-0"
                 >
                   {testing ? '测试中…' : 'Test'}
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !keys[activeProvider]}
-                  className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="flex-1 glow-btn-primary"
                 >
                   {saving ? '保存中…' : `保存 ${currentProvider.label} Key 并开始扫描 →`}
                 </button>
@@ -627,7 +664,7 @@ export default function Settings({
                   }
                   setStage('console');
                 }}
-                className="text-xs text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded px-2 py-1"
+                className="text-xs text-faint hover:text-secondary focus:outline-none rounded px-2 py-1"
               >
                 我稍后再配（7 天后再提醒）
               </button>
@@ -641,29 +678,30 @@ export default function Settings({
   // ================== 启动错误态 (A 轮 #A1) ==================
   if (stage === 'error') {
     return (
-      <div className="min-h-screen bg-red-50 px-6 py-10">
+      <div className="glass-canvas px-6 py-10 glass-scroll">
         <div className="mx-auto max-w-xl">
-          <div className="rounded-xl border border-red-200 bg-white p-8 shadow-sm">
+          <div className="glass-card-elevated relative">
+            <div className="glass-top-bar-wide" />
             <div className="mb-4 text-5xl">{"\u26A0\uFE0F"}</div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900">无法读取本机配置</h1>
-            <p className="mb-4 text-sm leading-relaxed text-gray-600">
+            <h1 className="mb-2 text-2xl font-bold gradient-text-h">无法读取本机配置</h1>
+            <p className="text-muted mb-4 text-sm leading-relaxed">
               助手启动时无法读取你的 LLM Key 配置。可能原因：数据目录无写权限、
               配置文件损坏、防病毒软件拦截。
             </p>
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <div className="glass-hint-danger mb-6 text-xs">
               <div className="mb-1 font-semibold">错误详情</div>
               <code className="break-all">{loadError ?? '未知错误'}</code>
             </div>
-            <p className="mb-4 text-xs text-gray-500">
+            <p className="text-muted mb-4 text-xs">
               预期路径：<code className="font-mono">%APPDATA%\skillhub-helper\.data\llm-keys.json</code>
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="w-full rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+              className="glow-btn-danger w-full"
             >
               重试
             </button>
-            <p className="mt-3 text-center text-xs text-gray-500">
+            <p className="text-muted mt-3 text-center text-xs">
               如重复出现，请尝试重启电脑 / 重新安装助手。
             </p>
           </div>
@@ -681,48 +719,42 @@ export default function Settings({
   const hasKey = configured.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 px-6 py-6">
+    // v2.0.7+：主控台玻璃化（cyan→magenta 渐变 + backdrop-blur 卡片）
+    // PR-2.1.4：移除主区域顶部冗余 header——品牌名 + 版本号已由左侧 sidebar 承担。
+    // 保留 max-w-xl（576px）：sidebar 220px + 主区 576px + 内边距 ≈ 844px，
+    // 在 Tauri 桌面助手默认窗口宽度（800-960px）下居中自然、不顶满右栏，
+    // 表单/卡片阅读体验最佳。
+    <div className="glass-canvas px-6 py-6 glass-scroll">
       <div className="mx-auto max-w-xl space-y-4">
-        <header>
-          <h1 className="text-xl font-semibold text-gray-900">SkillHub Helper</h1>
-          <p className="mt-1 text-xs text-gray-500">
-            桌面助手配置 · 版本 {info?.version || '...'}
-          </p>
-        </header>
-
         {/* ========== Section 1: LLM Key ========== */}
-        <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <section className="glass-card">
+          <div className="glass-top-bar" />
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span
                 aria-hidden
-                style={{
-                  display: 'inline-block',
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: hasKey ? '#16a34a' : '#d1d5db',
-                }}
+                className={hasKey ? 'status-dot-success' : 'status-dot-neutral'}
+                style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%' }}
               />
-              <h2 className="text-base font-semibold text-gray-900">LLM Key</h2>
+              <h2 className="text-primary text-base font-semibold">LLM Key</h2>
             </div>
             {!keyExpanded && (
               <button
                 onClick={() => setKeyExpanded(true)}
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-cyan-400 hover:underline"
               >
                 {hasKey ? '修改' : '配置'}
               </button>
             )}
           </div>
           {!keyExpanded && hasKey && (
-            <p className="text-sm text-gray-700">
+            <p className="text-secondary text-sm">
               已配：<span className="font-mono">{currentLabel}</span>
               {configured.length > 1 && ` · 共 ${configured.length} 个`}
             </p>
           )}
           {!keyExpanded && !hasKey && (
-            <p className="text-xs text-gray-500">未配置 LLM Key · 推荐下方按钮立刻配置</p>
+            <p className="text-muted text-xs">未配置 LLM Key · 推荐下方按钮立刻配置</p>
           )}
 
           {keyExpanded && (
@@ -731,7 +763,7 @@ export default function Settings({
                 <select
                   value={activeProvider}
                   onChange={(e) => setActiveProvider(e.target.value as Provider)}
-                  className="flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  className="flex-1 glass-select text-sm"
                 >
                   {PROVIDERS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -744,7 +776,7 @@ export default function Settings({
                   <button
                     type="button"
                     onClick={() => handleOpenDocs(currentProvider.docsUrl)}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-cyan-400 hover:underline"
                   >
                     {openingDocs ? '打开中…' : '获取 Key →'}
                   </button>
@@ -757,12 +789,12 @@ export default function Settings({
                   placeholder="Base URL，如 https://your-vllm.com/v1"
                   value={customBaseUrl}
                   onChange={(e) => setCustomBaseUrl(e.target.value)}
-                  className="mb-2 w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  className="glass-input mb-2 text-sm"
                 />
               )}
 
               {docsError && (
-                <p className="mb-2 break-all rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                <p className="glass-hint-warning mb-2 break-all text-xs">
                   {docsError}
                 </p>
               )}
@@ -778,24 +810,24 @@ export default function Settings({
                 <button
                   onClick={handleTest}
                   disabled={!keys[activeProvider] || testing}
-                  className="w-16 shrink-0 rounded bg-gray-100 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  className="w-16 shrink-0 glow-btn-ghost"
                 >
                   {testing ? '测试中…' : 'Test'}
                 </button>
               </div>
 
               {testResult?.ok && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
+                <div className="glass-hint-success mt-2 flex items-center gap-2 text-xs">
                   <span>✓ Key 有效</span>
                   {testResult.model && (
-                    <span className="rounded bg-green-100 px-1.5 py-0.5 font-mono text-[11px]">
+                    <span className="glass-chip">
                       将使用 model: {testResult.model}
                     </span>
                   )}
                 </div>
               )}
               {testResult && !testResult.ok && (
-                <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                <div className="glass-hint-danger mt-2 text-xs">
                   ✗ {testResult.error}
                 </div>
               )}
@@ -803,24 +835,24 @@ export default function Settings({
               <button
                 onClick={handleSave}
                 disabled={saving || !keys[activeProvider]}
-                className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                className="glow-btn-primary mt-3 w-full"
               >
                 {saving ? '保存中…' : '保存 Key'}
               </button>
 
               {saveError && (
-                <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                <p className="glass-hint-danger mt-2 text-xs">
                   {saveError}
                 </p>
               )}
               {savedTick[activeProvider] > 0 && !saveError && (
-                <p className="mt-2 text-xs text-green-700">✓ 已保存到本机</p>
+                <p className="glass-hint-success mt-2 text-xs">✓ 已保存到本机</p>
               )}
 
               {providerHasKey[activeProvider] && (
                 <button
                   onClick={handleDelete}
-                  className="mt-3 w-full text-xs text-red-600 hover:text-red-700 hover:underline"
+                  className="mt-3 w-full text-xs text-danger-600 hover:text-danger-700 hover:underline"
                 >
                   删除 {currentProvider.label} 的 Key
                 </button>
@@ -828,7 +860,7 @@ export default function Settings({
 
               <button
                 onClick={() => setKeyExpanded(false)}
-                className="mt-3 w-full text-xs text-gray-500 hover:text-gray-700"
+                className="mt-3 w-full text-xs text-muted hover:text-secondary"
               >
                 收起
               </button>
@@ -837,13 +869,14 @@ export default function Settings({
         </section>
 
         {/* ========== Section 2: 本机软件 ========== */}
-        <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <section className="glass-card">
+          <div className="glass-top-bar" />
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">本机软件</h2>
+            <h2 className="text-primary text-base font-semibold">本机软件</h2>
             <button
               onClick={handleScan}
               disabled={scanning}
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="glow-btn-ghost px-3 py-1 text-xs"
             >
               {scanning ? '扫描中…' : '重新扫描'}
             </button>
@@ -851,17 +884,17 @@ export default function Settings({
 
           {scanAt && (
             // A 轮 #G2：上次扫描时间也走相对时间格式
-            <p className="mb-2 text-xs text-gray-500" title={formatRelative(scanAt).title}>
+            <p className="text-muted mb-2 text-xs" title={formatRelative(scanAt).title}>
               上次扫描：{formatRelative(scanAt).text} · 检测到 {scanned.length} 个
             </p>
           )}
 
           {scanned.length === 0 && !scanning && (
-            <p className="text-xs text-gray-500">未检测到任何已配置软件（Photoshop / VSCode / Blender / Excel / PowerPoint / Figma / 飞书 / Notion）</p>
+            <p className="text-muted text-xs">未检测到任何已配置软件（Photoshop / VSCode / Blender / Excel / PowerPoint / Figma / 飞书 / Notion）</p>
           )}
 
           {seedError && (
-            <p className="mb-2 break-all rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+            <p className="glass-hint-warning mb-2 break-all text-xs">
               {seedError}
             </p>
           )}
@@ -877,10 +910,10 @@ export default function Settings({
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-green-600">✓</span>
-                        <span className="text-sm font-medium text-gray-900">{s.display_name}</span>
+                        <span className="text-success-700">✓</span>
+                        <span className="text-primary text-sm font-medium">{s.display_name}</span>
                       </div>
-                      <p className="mt-0.5 truncate font-mono text-[11px] text-gray-500" title={s.path}>
+                      <p className="text-muted mt-0.5 truncate font-mono text-[11px]" title={s.path}>
                         {s.path}
                       </p>
                     </div>
@@ -888,7 +921,7 @@ export default function Settings({
                       <button
                         type="button"
                         onClick={() => handleOpenSeed(s.software_tag)}
-                        className="ml-3 shrink-0 rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                        className="ml-3 shrink-0 glow-btn-ghost px-2 py-1 text-xs"
                         aria-label={`查看 ${s.display_name} 的 ${recommended.length} 个推荐 Skill`}
                         title={`跳转 Web 端查看 ${s.display_name} 的推荐 Skill`}
                       >
@@ -906,14 +939,15 @@ export default function Settings({
         {/* 由 Web 端走 skillhub:// 唤起助手 → 跑完剧本后的产物（App.tsx 顶层维护状态，通过 prop 传入）。
             PRD §7 设计：桌面端不负责推荐，只负责安装 + 汇总。
             installProgress 走 App.tsx 顶层浮窗（覆盖任何 Tab）。 */}
-        <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <section className="glass-card">
+          <div className="glass-top-bar" />
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">已安装 Skills</h2>
-            <span className="text-xs text-gray-400">{installedSkills.length} 个</span>
+            <h2 className="text-primary text-base font-semibold">已安装 Skills</h2>
+            <span className="text-xs text-faint">{installedSkills.length} 个</span>
           </div>
 
           {installedSkills.length === 0 && (
-            <div className="text-xs leading-relaxed text-gray-500">
+            <div className="text-muted text-xs leading-relaxed">
               {/* v2.0.5：移除 skillhub:// 内部协议术语，普通用户不需要知道 */}
               还没有装过 Skills。请到{' '}
               <a
@@ -922,7 +956,7 @@ export default function Settings({
                   e.preventDefault();
                   openUrl('https://skillhub.proclaw.cc');
                 }}
-                className="text-blue-600 hover:underline"
+                className="text-cyan-400 hover:underline"
               >
                 SkillHub Web 端
               </a>
@@ -936,38 +970,28 @@ export default function Settings({
                 <li key={s.slug} className="flex items-center justify-between py-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      <span className="text-sm font-medium text-gray-900">{s.name}</span>
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600">
+                      <span className="text-success-700">✓</span>
+                      <span className="text-primary text-sm font-medium">{s.name}</span>
+                      <span className="glass-chip">
                         {s.software}
                       </span>
                     </div>
                     {/* A 轮 #G2：相对时间 + title 给绝对时间。 */}
-                    <p className="mt-0.5 text-[11px] text-gray-500" title={formatRelative(s.installedAt).title}>
+                    <p className="text-muted mt-0.5 text-[11px]" title={formatRelative(s.installedAt).title}>
                       {formatRelative(s.installedAt).text} ·{' '}
                       <span className="font-mono">{s.slug}</span>
                     </p>
                   </div>
-                  {/* A 轮 #B3：A 轮修复 #B3 补「卸载」入口。点击调 invoke('uninstall_skill')，
-                      并通知父组件从 jobs 中移除。MVP 为软卸载——返回 manual_steps 提示手动从目标软件卸。 */}
+                  {/* 验收 UX-P0-C：卸载入口改为「先弹 modal」，不再走 window.confirm。
+                      - modal 展示后端返回的 manual_steps（下一步该去哪几个软件/路径卸插件）
+                      - modal 「完成」点击后才调 onUninstallSkill 从 jobs 中移除
+                      原实现 ignore 了 manual_steps，仅 invoke 成功就 UI 移除，用户被骗以为已卸。 */}
                   {onUninstallSkill && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        const ok = window.confirm(
-                          `从已装列表移除「${s.name}」？\n\n（当前为软卸载，如需从 ${s.software} 中完全移除插件请在软件内手动操作）`,
-                        );
-                        if (!ok) return;
-                        try {
-                          await invoke('uninstall_skill', { slug: s.slug, skill: s });
-                        } catch (e) {
-                          // 即使 invoke 失败也通知 AppJobsBridge 移除显示——MVP 是软卸载，不阻塞 UX
-                          console.warn('uninstall_skill invoke failed', e);
-                        }
-                        onUninstallSkill(s.slug);
-                      }}
-                      aria-label={`卸载 ${s.name}，从已装列表移除`}
-                      className="ml-2 shrink-0 rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                      onClick={() => handleUninstall(s)}
+                      aria-label={`卸载 ${s.name}，查看手动卸载步骤`}
+                      className="ml-2 shrink-0 glow-btn-danger px-2 py-1 text-xs"
                     >
                       卸载
                     </button>
@@ -981,18 +1005,19 @@ export default function Settings({
         {/* ========== Section 4: 诊断 / 故障排查 ========== */}
         {/* v2.0.5：原"关于"Section 改诊断卡片——端口号、协议状态、日志路径
             （顶部 About Tab 仍保留对外说明，本卡片专注"出了事怎么查"） */}
-        <section className="rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-3 text-base font-semibold text-gray-900">诊断 / 故障排查</h2>
-          <dl className="space-y-2 text-xs text-gray-700">
+        <section className="glass-card">
+          <div className="glass-top-bar" />
+          <h2 className="text-primary mb-3 text-base font-semibold">诊断 / 故障排查</h2>
+          <dl className="space-y-2 text-xs text-secondary">
             <div className="flex items-center justify-between">
-              <dt className="text-gray-500">本机 HTTP 端口</dt>
+              <dt className="text-muted">本机 HTTP 端口</dt>
               <dd className="font-mono">
                 {info?.helper_port ?? '…'}{' '}
                 {info?.helper_port && (
                   <button
                     type="button"
                     onClick={() => navigator.clipboard?.writeText(String(info.helper_port))}
-                    className="ml-1 text-blue-600 hover:underline"
+                    className="text-cyan-400 ml-1 hover:underline"
                     title="复制端口号（Web 端探测助手时使用）"
                   >
                     复制
@@ -1001,34 +1026,108 @@ export default function Settings({
               </dd>
             </div>
             <div className="flex items-center justify-between">
-              <dt className="text-gray-500">skillhub:// 协议</dt>
+              <dt className="text-muted">skillhub:// 协议</dt>
               <dd>
                 {info?.protocol_registered ? (
-                  <span className="text-green-700">✓ 已注册</span>
+                  <span className="text-success-700">✓ 已注册</span>
                 ) : (
                   <span className="text-amber-700">未注册 · Web 端可能唤不起助手</span>
                 )}
               </dd>
             </div>
             <div className="flex items-center justify-between">
-              <dt className="text-gray-500">数据目录</dt>
-              <dd className="font-mono text-[11px] text-gray-500">
+              <dt className="text-muted">数据目录</dt>
+              <dd className="font-mono text-[11px] text-muted">
                 %APPDATA%\skillhub-helper\.data
               </dd>
             </div>
           </dl>
-          <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+          <p className="text-muted mt-3 text-[11px] leading-relaxed">
             您的 API Key 永远不会上传到服务器。Web 端访问{' '}
             <button
               type="button"
               onClick={handleOpenWeb}
-              className="text-blue-600 hover:underline"
+              className="text-cyan-400 hover:underline"
             >
               skillhub.proclaw.cc
             </button>{' '}
             即可连上本助手。
           </p>
         </section>
+
+        {/* 验收 UX-P0-C：卸载 modal。展示后端返回的 manual_steps + 区分 error / success。
+            - 成功（isError=false）：标题「请完成 X 的手动卸载」，说明桌面助手只负责发卸载指令，
+              真正卸载得用户在目标软件里点一下。点击「已完成手动卸载」才调 onUninstallSkill 从 jobs 中移除。
+            - 失败（isError=true）：invok 报错，告知用户失败原因 + 兜底的手动步骤。点遮罩关闭。
+            - z-index=1100 比 InstallJobToast(1000) 高，避免被 toast 盖住。
+            - 点遮罩 = 关闭（视为「我再想想」），不调 onUninstallSkill。 */}
+        {uninstallModal && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="uninstall-modal-title"
+            aria-describedby="uninstall-modal-desc"
+            onClick={() => setUninstallModal(null)}
+            className="glass-modal-backdrop"
+          >
+            <div onClick={(e) => e.stopPropagation()} className="glass-modal relative">
+              <div className="glass-top-bar-wide" />
+              <h2
+                id="uninstall-modal-title"
+                className={uninstallModal.isError ? 'text-danger-700' : 'glass-modal-title'}
+              >
+                {uninstallModal.isError
+                  ? `卸载 ${uninstallModal.skill.name} 未完成`
+                  : `请完成 ${uninstallModal.skill.name} 的手动卸载`}
+              </h2>
+              <p
+                id="uninstall-modal-desc"
+                className="text-secondary my-3 text-[13px] leading-relaxed"
+              >
+                {uninstallModal.isError
+                  ? '桌面助手没有收到卸载指令。请按下方步骤手动卸载，或稍后重试：'
+                  : '桌面助手已记录卸载请求。由于不同软件卸载方式不同，请在对应软件里完成最后一步：'}
+              </p>
+              {uninstallModal.manual_steps.length > 0 && (
+                <ol
+                  className={
+                    uninstallModal.isError
+                      ? 'glass-hint-danger m-0 text-[13px] leading-relaxed'
+                      : 'glass-card-soft m-0 text-[13px] leading-relaxed'
+                  }
+                >
+                  {uninstallModal.manual_steps.map((step, idx) => (
+                    <li key={idx} style={{ whiteSpace: 'pre-wrap' }}>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUninstallModal(null)}
+                  className="glow-btn-ghost"
+                >
+                  我再想想
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // 关键：必须 modal 关闭时才调 onUninstallSkill，
+                    // 不能在 handleUninstall 里就调，否则用户在 modal 里看到 manual_steps 之前
+                    // 已装列表就已移除，会被骗以为「已经卸了」。
+                    onUninstallSkill?.(uninstallModal.skill.slug);
+                    setUninstallModal(null);
+                  }}
+                  className={uninstallModal.isError ? 'glow-btn-danger' : 'glow-btn-primary'}
+                >
+                  {uninstallModal.isError ? '知道了' : '已完成手动卸载'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

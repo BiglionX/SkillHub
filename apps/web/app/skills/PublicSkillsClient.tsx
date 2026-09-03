@@ -339,6 +339,9 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
             <h1 className="text-5xl font-extrabold mb-6 tracking-tight">
               Skill信息聚合平台
             </h1>
+            <p className="gradient-text text-sm font-medium mb-3 max-w-2xl mx-auto tracking-wide">
+              ✨ v2.0.7+ 全新玻璃拟态体验
+            </p>
             <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed">
               探索、下载和分享社区创建的优质技能，为你的 AI Agent 赋能无限可能
             </p>

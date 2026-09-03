@@ -61,11 +61,11 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
-// 获取质量分数颜色
-function getQualityScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
-  if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-  return 'text-gray-600 bg-gray-50 border-gray-200';
+// 获取质量分数对应的 glass-pill 变体（plan §3.2 + glass.css）
+function getQualityScorePillClass(score: number): string {
+  if (score >= 80) return 'glass-pill-success';
+  if (score >= 60) return 'glass-pill-warning';
+  return 'glass-pill-neutral';
 }
 
 export default function SkillCard({
@@ -98,35 +98,37 @@ export default function SkillCard({
   };
 
   return (
+    // v2.0.7+：plan §3.2 技能卡片走 glass.css。
+    // 主体用 .glass-card glass-card-hover，顶部 hover 时显现 cyan→indigo→magenta 渐变指示线（glass-top-bar-wide）。
+    // 状态/质量/标签徽章改用 .glass-pill-* 系列，按钮改用 .glow-btn-primary / .glow-btn-ghost。
     <Link
       href={`/skills/${slug}`}
-      className="group block bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all overflow-hidden border border-gray-100"
+      className="glass-card glass-card-hover group block hover:-translate-y-1 relative transition-all"
     >
-      {/* Card Header with gradient accent */}
-      <div className="h-1.5 bg-linear-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      
+      <div className="glass-top-bar-wide opacity-0 group-hover:opacity-100 transition-opacity" />
+
       <div className="p-6">
         <div className="flex items-start justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
+          <h3 className="text-lg font-bold text-glass-text-primary line-clamp-1 group-hover:text-glass-text-link transition-colors">
             {name}
           </h3>
           {namespace && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-linear-to-r from-purple-500/10 to-indigo-500/10 text-purple-700 border border-purple-200">
+            <span className="glass-pill glass-pill-violet ml-2">
               {namespace.name}
             </span>
           )}
         </div>
-        
+
         {/* 子分类和质量分数徽章 */}
         {(subcategory || qualityScore) && (
           <div className="mb-3 flex flex-wrap gap-2">
             {subcategory && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-linear-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200">
+              <span className="glass-pill glass-pill-cyan">
                 {getSubcategoryLabel(subcategory)}
               </span>
             )}
             {qualityScore && (
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium border ${getQualityScoreColor(qualityScore)}`}>
+              <span className={`glass-pill ${getQualityScorePillClass(qualityScore)}`}>
                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
@@ -135,43 +137,43 @@ export default function SkillCard({
             )}
           </div>
         )}
-        
-        <p className="text-sm text-gray-600 mb-5 line-clamp-2 leading-relaxed">
+
+        <p className="text-sm text-glass-text-secondary mb-5 line-clamp-2 leading-relaxed">
           {description}
         </p>
 
         {/* Author and Stats */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-4 border-t border-glass-border">
           <div className="flex items-center gap-2">
             {author?.image ? (
               <img
                 src={author.image}
                 alt={author.name || ''}
-                className="w-8 h-8 rounded-full mr-2 ring-2 ring-white"
+                className="w-8 h-8 rounded-full mr-2 ring-2 ring-glass-card-300/60"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-indigo-500 flex items-center justify-center mr-2 text-white text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-magenta-500 flex items-center justify-center mr-2 text-white text-xs font-bold">
                 {author?.name?.charAt(0).toUpperCase() || '?'}
               </div>
             )}
             <div className="flex flex-col">
-              <span className="text-sm text-gray-700 font-medium truncate max-w-30">{author?.name || '未知作者'}</span>
+              <span className="text-sm text-glass-text-primary font-medium truncate max-w-30">{author?.name || '未知作者'}</span>
               {source && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-glass-text-muted">
                   来源: {source}
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="flex items-center text-sm text-gray-600" title="下载次数">
-              <svg className="w-4 h-4 mr-1 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="flex items-center text-sm text-glass-text-secondary" title="下载次数">
+              <svg className="w-4 h-4 mr-1 text-glass-text-link" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               {formatNumber(downloadCount)}
             </span>
-            <span className="flex items-center text-sm text-gray-600" title="Stars">
-              <svg className="w-4 h-4 mr-1 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+            <span className="flex items-center text-sm text-glass-text-secondary" title="Stars">
+              <svg className="w-4 h-4 mr-1 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
               {formatNumber(starCount)}
@@ -181,13 +183,13 @@ export default function SkillCard({
 
         {/* Action Buttons: Comment and Download */}
         <div className="mt-4 flex gap-2">
-          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors group/comment">
-            <svg className="w-4 h-4 text-gray-400 group-hover/comment:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <button className="glow-btn glow-btn-ghost glow-btn-sm flex-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             评论
           </button>
-          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all">
+          <button className="glow-btn glow-btn-primary glow-btn-sm flex-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
@@ -201,7 +203,7 @@ export default function SkillCard({
             {tags.slice(0, 3).map((tag: string, idx: number) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-linear-to-r from-gray-50 to-gray-100 text-gray-700 border border-gray-200 hover:border-blue-300 transition-colors"
+                className="glass-pill"
               >
                 {tag}
               </span>
@@ -211,7 +213,7 @@ export default function SkillCard({
 
         {/* 更新时间 */}
         {updatedAt && (
-          <div className="mt-3 text-xs text-gray-500">
+          <div className="mt-3 text-xs text-glass-text-muted">
             更新于 {formatDate(updatedAt)}
           </div>
         )}

@@ -3,7 +3,14 @@ import { invoke } from '@tauri-apps/api/core';
 import Settings from './pages/Settings';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { StatusBadge, ToastCard } from './components/StatusBadge';
-import { COLORS } from './tokens';
+import {
+  AlertTriangle,
+  Circle,
+  Info,
+  Link2,
+  Settings as SettingsIcon,
+  Sparkles,
+} from 'lucide-react';
 
 type Tab = 'settings' | 'about';
 
@@ -156,6 +163,35 @@ function serializeInstalledSkills(items: InstalledSkill[]): string {
   return JSON.stringify({ schemaVersion: PERSIST_SCHEMA_VERSION, items });
 }
 
+/**
+ * 验收 UX-P0-D：把本机路径拼成 RFC 8089 规范的 file:// URL。
+ * 原实现 `file://${path}` 在 Windows 下会拼出 `file://C:\Users\foo\bar`（缺第三个斜杠 + 反斜杠），
+ * 多数 opener（包括 tauri-plugin-opener）在 Windows 上会拒绝解析。
+ * - Windows：反斜杠 → 正斜杠，盘符前补一个斜杠得 `file:///C:/Users/foo/bar`
+ * - 其他平台：保留前导斜杠得 `file:///home/user/bar`
+ * - encodeURI 转义空格 / 中文 / `#` 等保留字符。
+ */
+function pathToFileUrl(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
+  const withScheme =
+    /^[a-z]:/i.test(normalized)
+      ? `file:///${normalized}`
+      : `file://${normalized}`;
+  return encodeURI(withScheme);
+}
+
+/**
+ * 验收 UX-P0-D：解析 CTA action 为可调起的 URL。
+ * 仅识别 `open-path:<本机路径>`；其他（http(s) / skillhub:// / 原始 URL）原样透传。
+ */
+function resolveCtaUrl(action: string): string {
+  const PREFIX = 'open-path:';
+  if (action.startsWith(PREFIX)) {
+    return pathToFileUrl(action.slice(PREFIX.length));
+  }
+  return action;
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('settings');
   const [info, setInfo] = useState<HelperInfo | null>(null);
@@ -184,17 +220,20 @@ export default function App() {
   }, []);
 
   return (
-    <div>
-      <nav
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 24px',
-          borderBottom: '1px solid #e5e7eb',
-          background: '#fff',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 4 }} role="tablist" aria-label="主导航">
+    <div className="glass-app-layout">
+      {/* PR-2.1：左侧窄导航列 + 右侧主区。TabButton 保留以维持键盘导航 / ARIA 语义。 */}
+      <aside className="glass-sidebar" aria-label="主导航">
+        <div className="glass-sidebar-header">
+          <div className="glass-sidebar-logo" aria-hidden>
+            {/* v2.0.7+：侧边栏 logo 走 lucide（之前用 🐙 emoji，深色玻璃上对比度差） */}
+            <Sparkles size={18} strokeWidth={2.5} />
+          </div>
+          <div className="glass-sidebar-brand">
+            <span className="glass-sidebar-brand-name">SkillHub Helper</span>
+            <span className="glass-sidebar-brand-version">v2.0.7</span>
+          </div>
+        </div>
+        <nav role="tablist" aria-label="主导航">
           {/* A 轮 #H1：tabOrder 给键盘导航用；focusTabById 给子组件回调用 */}
           {(['settings', 'about'] as Tab[]).map((t) => (
             <TabButton
@@ -205,61 +244,109 @@ export default function App() {
               tabOrder={['settings', 'about']}
               onFocusTab={focusTabById}
             >
-              {t === 'settings' ? 'LLM Key 设置' : '关于'}
+              {t === 'settings' ? (
+                <span className="flex items-center gap-2">
+                  <SettingsIcon size={15} aria-hidden />
+                  <span>LLM Key 设置</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Info size={15} aria-hidden />
+                  <span>关于</span>
+                </span>
+              )}
             </TabButton>
           ))}
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {/* A 轮 #G1：Key 状态（圆点 + 文字）。逻辑复制不动，只调样式让它和右边徽章在视觉上拉开。 */}
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              color: hasKey ? '#16a34a' : '#6b7280',
-            }}
+        </nav>
+        <div className="glass-sidebar-footer">
+          {/* A 轮 #G1：Key 状态圆点 + 文字。改为 sidebar 底部玻璃化胶囊。 */}
+          <div
+            className="glass-sidebar-status"
             aria-label={hasKey ? 'LLM Key 已配置' : 'LLM Key 未配置'}
           >
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: hasKey ? '#16a34a' : '#d1d5db',
-              }}
+            <span aria-hidden
+              className={hasKey ? 'status-dot-success' : 'status-dot-neutral'}
+              style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', flexShrink: 0 }}
             />
-            {hasKey ? `已就绪 · 端口 ${info?.helper_port ?? '…'}` : '未配置'}
-          </span>
-          {/* A 轮 #G1：session 绑定徽章独立为一组，加视觉边界。 */}
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 11,
-              padding: '2px 8px',
-              borderRadius: 999,
-              border: '1px solid',
-              ...(session?.has_token
-                ? { background: '#dbeafe', color: '#1e40af', borderColor: '#93c5fd' }
-                : { background: '#f3f4f6', color: '#6b7280', borderColor: '#e5e7eb' }),
-            }}
+            <span className="glass-sidebar-status-text">
+              {hasKey ? `已就绪 · 端口 ${info?.helper_port ?? '…'}` : '未配置 LLM Key'}
+            </span>
+          </div>
+          {/* A 轮 #G1：session 绑定徽章玻璃化为 cyan 胶囊。 */}
+          <div
+            className={session?.has_token ? 'glass-pill glass-pill-cyan' : 'glass-pill glass-pill-neutral'}
             title={
               session?.has_token
                 ? `绑定于 ${session.user_email ?? session.user_id ?? '已绑定 Web 账号'}`
                 : '心跳上报为匿名状态。绑定后可启用反向推送 / 个人化推荐'
             }
           >
-            <span aria-hidden>{session?.has_token ? '🔗' : '○'}</span>
-            {session?.has_token ? '已绑定 Web 账号' : '未绑定'}
-          </span>
+            <span aria-hidden className="flex items-center gap-1.5">
+                          {session?.has_token ? <Link2 size={13} /> : <Circle size={13} />}
+                        </span>
+            <span>{session?.has_token ? '已绑定 Web 账号' : '未绑定 Web'}</span>
+          </div>
         </div>
-      </nav>
+      </aside>
 
       <main>
+        {/* A 轮 #B6：协议未注册时放在主区域顶部流式 banner，不再 fixed 覆盖 sidebar。 */}
+        {info &&
+          info.protocol_registered === false &&
+          info.helper_port !== undefined && (
+            <div
+              role="alert"
+              className="glass-banner-warning mb-4 flex flex-wrap items-center justify-center gap-3 px-4 py-2 text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <AlertTriangle size={14} aria-hidden />
+                <span>
+                  <strong>skillhub:// 协议未注册</strong>
+                  {' '}— Web 端可能无法唤起助手。
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const r = await invoke<{ ok: boolean; status?: string; message?: string }>(
+                      'ensure_protocol_registered',
+                    );
+                    if (r.ok) {
+                      setInfo((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              protocol_registered: r.status !== 'not_registered' && r.status !== 'unsupported',
+                            }
+                          : prev,
+                      );
+                    }
+                  } catch (e) {
+                    console.warn('ensure_protocol_registered failed', e);
+                  }
+                }}
+                className="glow-btn glow-btn-warning px-3 py-1 text-xs"
+              >
+                重新注册
+              </button>
+            </div>
+          )}
+        {/* A 轮 #G1：fallback 警示，从顶栏搬到主区域顶部 banner。 */}
+        {info &&
+          info.key_store_fallback && (
+            <div
+              role="alert"
+              aria-label="KeyStore 数据未持久化"
+              className="glass-hint-danger mb-4"
+            >
+              <strong className="flex items-center gap-2">
+                <AlertTriangle size={14} aria-hidden />
+                <span>数据未持久化</span>
+              </strong>
+              {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
+            </div>
+          )}
         {/* A 轮 #H2：Tab panel 语义化。aria-labelledby 指向 tab id 让屏幕阅读器知道面板归属。 */}
         <div
           role="tabpanel"
@@ -284,88 +371,6 @@ export default function App() {
           {tab === 'about' && <About />}
         </div>
       </main>
-
-      {/* A 轮 #G1：fallback 警示从顶栏搬到主区域顶部 banner，更显眼且不挤徽章。
-          原只埋在 Section 4「诊断」卡里，可发现性太差。 */}
-      {info &&
-        info.key_store_fallback && (
-          <div
-            role="alert"
-            aria-label="KeyStore 数据未持久化"
-            style={{
-              padding: '8px 16px',
-              background: '#fef2f2',
-              borderBottom: '1px solid #fecaca',
-              color: '#991b1b',
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
-            <span>
-              ⚠ <strong>数据未持久化</strong>
-              {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
-            </span>
-          </div>
-        )}
-      {/* A 轮 #B6：协议未注册时，在主区域顶部显眼的 banner 提示 + 一键修复。
-          原只埋在 Section 4「诊断」卡里，可发现性太差。 */}
-      {info &&
-        info.protocol_registered === false &&
-        info.helper_port !== undefined && (
-          <div
-            role="alert"
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              padding: '8px 16px',
-              background: '#fef3c7',
-              borderBottom: '1px solid #f59e0b',
-              color: '#92400e',
-              fontSize: 13,
-              zIndex: 999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-            }}
-          >
-            <span>
-              ⚠ <strong>skillhub:// 协议未注册</strong>
-              {' '}— Web 端可能无法唤起助手。
-            </span>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const r = await invoke<{ ok: boolean; status?: string; message?: string }>(
-                    'ensure_protocol_registered',
-                  );
-                  if (r.ok) {
-                    setInfo((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            protocol_registered: r.status !== 'not_registered' && r.status !== 'unsupported',
-                          }
-                        : prev,
-                    );
-                  }
-                } catch (e) {
-                  console.warn('ensure_protocol_registered failed', e);
-                }
-              }}
-              className="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-            >
-              重新注册
-            </button>
-          </div>
-        )}
     </div>
   );
 }
@@ -736,71 +741,52 @@ function ConfirmInstallModal({
       aria-modal="true"
       aria-labelledby="confirm-install-title"
       aria-describedby="confirm-install-desc"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1100,
-      }}
+      className="glass-modal-backdrop"
       onClick={(e) => {
         // A 轮 #H3：点击背景蒙层关闭（点 dialog 内部不冒泡关闭）。
         if (e.target === e.currentTarget) onCancel();
       }}
     >
       <div
-        style={{
-          width: 420,
-          background: '#fff',
-          borderRadius: 12,
-          padding: 20,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-modal relative"
       >
-        <h2 id="confirm-install-title" style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
-          ⚠ 即将安装 Skill
+        <div className="glass-top-bar-wide" />
+        <h2 id="confirm-install-title" className="glass-modal-title">
+          即将安装 Skill
         </h2>
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        >
-          <div style={{ marginBottom: 6 }}>
-            <strong>Skill：</strong>
-            <code style={{ color: '#1e40af' }}>{pending.slug}</code>
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            <strong>适用软件：</strong>
-            <code>{pending.software}</code>
+        <div className="glass-card-soft mt-3 text-[13px] space-y-1.5">
+          <div>
+            <strong className="text-primary">Skill：</strong>
+            <code className="text-cyan-300 font-mono">{pending.slug}</code>
           </div>
           <div>
-            <strong>触发：</strong>
-            {pending.source === 'url-event' ? 'skillhub:// 协议唤起' : 'Web 端 window 桥接'}
+            <strong className="text-primary">适用软件：</strong>
+            <code className="font-mono">{pending.software}</code>
+          </div>
+          <div>
+            <strong className="text-primary">触发：</strong>
+            <span className="text-secondary">
+              {pending.source === 'url-event' ? 'skillhub:// 协议唤起' : 'Web 端 window 桥接'}
+            </span>
           </div>
         </div>
-        <p id="confirm-install-desc" style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>
+        <p id="confirm-install-desc" className="text-muted mt-3 text-xs leading-relaxed">
           如果这不是你主动触发的，请点取消。恶意 Web 页面可能通过此路径诱导安装。
         </p>
-        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <div className="mt-4 flex gap-2">
           <button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded border border-gray-300 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="glow-btn-ghost flex-1"
           >
             取消（Esc）
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="glow-btn-primary flex-1"
           >
             确认安装
           </button>
@@ -889,7 +875,7 @@ function InstallJobToast({
   if (job.phase === 'succeeded' && job.completed) {
     return (
       <ToastCard borderTone="succeeded">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="flex items-center justify-between">
           <StatusBadge phase="succeeded" icon="✓" compact>
             {job.name}
           </StatusBadge>
@@ -898,15 +884,12 @@ function InstallJobToast({
               type="button"
               onClick={() => {
                 const action = job.cta?.action ?? '';
-                const url = action.startsWith('open-path:')
-                  ? `file://${action.slice('open-path:'.length)}`
-                  : action;
+                const url = resolveCtaUrl(action); // 验收 UX-P0-D：open-path 转 RFC 8089 file URL
                 invoke('plugin:opener|open_url', { url })
                   .catch(() => import('@tauri-apps/plugin-opener').then((m) => m.openUrl(url)))
                   .catch(() => {});
               }}
-              className="text-xs hover:underline"
-              style={{ color: COLORS.text.link }}
+              className="text-xs text-link hover:underline"
             >
               {job.cta?.label ?? '打开'}
             </button>
@@ -918,7 +901,7 @@ function InstallJobToast({
   if (job.phase === 'failed' && job.failure) {
     return (
       <ToastCard borderTone="failed" ariaRole="alert" ariaLive="assertive">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div className="flex items-center justify-between mb-1.5">
           <StatusBadge phase="failed" icon="✗" compact>
             安装失败 · {job.failure.skillName}
           </StatusBadge>
@@ -926,32 +909,18 @@ function InstallJobToast({
             type="button"
             onClick={onCloseFailure}
             aria-label="关闭"
-            className="bg-transparent border-none text-base leading-none cursor-pointer px-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-            style={{ color: COLORS.status.neutralText }}
+            className="bg-transparent border-none text-base leading-none cursor-pointer px-1 rounded text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
             ×
           </button>
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: COLORS.status.dangerMuted,
-            background: COLORS.status.dangerBg,
-            padding: 6,
-            borderRadius: 6,
-            fontFamily: 'monospace',
-            wordBreak: 'break-all',
-            maxHeight: 96,
-            overflow: 'auto',
-          }}
-        >
+        <pre className="glass-hint-danger mt-0 mb-0 text-[11px] font-mono whitespace-pre-wrap break-all max-h-24 overflow-auto">
           {job.failure.error}
-        </div>
+        </pre>
         <button
           type="button"
           onClick={() => navigator.clipboard?.writeText(job.failure?.error ?? '')}
-          className="mt-2 text-xs hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-          style={{ color: COLORS.text.muted }}
+          className="mt-2 text-xs text-muted hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
         >
           复制错误详情
         </button>
@@ -966,11 +935,11 @@ function InstallJobToast({
   const msg = job.progress?.event?.message ?? job.progress?.event?.kind ?? '';
   return (
     <ToastCard borderTone="running">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.status.infoText }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[13px] font-semibold text-cyan-300">
           正在安装 {job.name}
         </span>
-        <span style={{ fontSize: 11, color: COLORS.status.infoAccent, fontFamily: 'monospace' }}>
+        <span className="text-[11px] text-cyan-400 font-mono">
           {job.progress ? `${job.progress.step}/${job.progress.total_steps}` : '0/0'} ·{' '}
           {job.progress ? (job.progress.elapsed_ms / 1000).toFixed(1) : '0.0'}s
         </span>
@@ -987,34 +956,16 @@ function InstallJobToast({
             ? `第 ${job.progress.step} 步，共 ${job.progress.total_steps} 步`
             : '准备中'
         }
-        style={{
-          height: 6,
-          width: '100%',
-          background: COLORS.status.infoBg,
-          borderRadius: 999,
-          overflow: 'hidden',
-          marginBottom: msg ? 6 : 0,
-        }}
+        className="glass-progress mb-0"
+        style={msg ? { marginBottom: 6 } : undefined}
       >
         <div
-          style={{
-            height: '100%',
-            width: `${pct}%`,
-            background: COLORS.brand.primary,
-            transition: 'width 200ms ease',
-          }}
+          className="glass-progress-fill"
+          style={{ width: `${pct}%` }}
         />
       </div>
       {msg && (
-        <div
-          style={{
-            fontSize: 11,
-            color: COLORS.text.linkMuted,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
+        <div className="text-[11px] text-muted mt-1.5 truncate">
           {msg}
         </div>
       )}
@@ -1096,32 +1047,71 @@ function TabButton({
 }
 
 function About() {
+  // v2.0.7+：About 玻璃化（与 Settings 主控台同一风格，cyan→magenta 渐变 + backdrop-blur）。
+  // 原浅色 inline style 与左窄导航列视觉不一致，已统一替换。
   return (
-    <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-      <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 8px' }}>关于 SkillHub Helper</h2>
-      <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7 }}>
-        SkillHub 桌面助手是 <strong>Skill 的执行载体</strong>，不负责浏览/推荐——那些都在
-        <a href="https://skillhub.proclaw.cc" target="_blank" rel="noreferrer"> Web 端</a>完成。
-        <br />
-        <br />
-        <strong>桌面端职责</strong>：
-        <br />
-        ① 转发 Web 端 LLM 调用到你本机的 API Key（<strong>不经过云端</strong>）
-        <br />
-        ② 扫描本机已装软件（M2 · F9）
-        <br />
-        ③ 上报软件清单给云端用于反向推送（M2 · F14）
-        <br />
-        ④ 执行 Web 端走 <code>skillhub://</code> 协议唤起的安装剧本（M2 · F4+F10）
-        <br />
-        <br />
-        你的 API Key 仅 AES-256 加密存储在本机 <code>%APPDATA%\skillhub-helper\.data\llm-keys.json</code>，
-        永远不会上传到 SkillHub 服务器。
-        <br />
-        <br />
-        <strong>Web 端访问</strong> <a href="https://skillhub.proclaw.cc" target="_blank" rel="noreferrer">https://skillhub.proclaw.cc</a>{' '}
-        即可自动连上本助手（首页对话框输入需求 → 选 Skill → 一键安装 → 自动唤起）。
-      </p>
+    <div className="glass-canvas px-6 py-10 glass-scroll">
+      <div className="mx-auto max-w-2xl">
+        <div className="glass-card-elevated relative">
+          <div className="glass-top-bar-wide" />
+          <div className="mb-4 text-5xl">{"\uD83D\uDC9A"}</div>
+          <h1 className="mb-2 text-2xl font-bold gradient-text-h">关于 SkillHub Helper</h1>
+          <p className="text-secondary text-sm leading-7 mb-4">
+            SkillHub 桌面助手是 <strong>Skill 的执行载体</strong>，不负责浏览/推荐——那些都在
+            <a
+              href="https://skillhub.proclaw.cc"
+              target="_blank"
+              rel="noreferrer"
+              className="text-link ml-1"
+            >
+              Web 端
+            </a>
+            完成。
+          </p>
+
+          <h2 className="text-primary mt-5 mb-2 text-base font-semibold">桌面端职责</h2>
+          <ul className="text-secondary space-y-2 text-sm leading-7 list-none pl-0">
+            <li className="glass-card-soft flex items-start gap-3 mb-0">
+              <span className="glass-step-num">1</span>
+              <span>
+                转发 Web 端 LLM 调用到你本机的 API Key（<strong>不经过云端</strong>）
+              </span>
+            </li>
+            <li className="glass-card-soft flex items-start gap-3 mb-0">
+              <span className="glass-step-num">2</span>
+              <span>扫描本机已装软件（M2 · F9）</span>
+            </li>
+            <li className="glass-card-soft flex items-start gap-3 mb-0">
+              <span className="glass-step-num">3</span>
+              <span>上报软件清单给云端用于反向推送（M2 · F14）</span>
+            </li>
+            <li className="glass-card-soft flex items-start gap-3 mb-0">
+              <span className="glass-step-num">4</span>
+              <span>执行 Web 端走 <code className="font-mono text-cyan-300">skillhub://</code> 协议唤起的安装剧本（M2 · F4+F10）</span>
+            </li>
+          </ul>
+
+          <div className="glass-hint-info mt-5 text-xs">
+            <strong>数据安全</strong>：你的 API Key 仅 AES-256 加密存储在本机{' '}
+            <code className="font-mono break-all">%APPDATA%\skillhub-helper\.data\llm-keys.json</code>
+            ，永远不会上传到 SkillHub 服务器。
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted">Web 端访问</span>
+            <a
+              href="https://skillhub.proclaw.cc"
+              target="_blank"
+              rel="noreferrer"
+              className="text-link break-all"
+            >
+              https://skillhub.proclaw.cc
+            </a>
+            <span className="text-faint">·</span>
+            <span className="text-muted">即可自动连上本助手</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

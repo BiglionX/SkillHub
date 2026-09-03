@@ -1,0 +1,353 @@
+/*
+ * apps/web/styles/glass.css
+ *
+ * v2.0.7+ UI 重构 · 玻璃拟态系统（Web 端版）
+ *
+ * 与桌面端 helper/src/glass/ 一一对应，但用 Tailwind v4 @theme + @layer utilities
+ * 暴露为 utility class，让 Next.js 页面通过 className 直接用：
+ *
+ *   <div className="glass-card glass-cyan p-4">...</div>
+ *   <h1 className="gradient-text">标题</h1>
+ *   <button className="glow-btn-primary">...</button>
+ *
+ * 设计 Token 与 helper 端 GLASS_TOKENS 保持一致（cyan→magenta 渐变 + 深色玻璃）。
+ * 后续 PR 5.2-5.5 改造页面时直接套用这些 className 即可。
+ *
+ * 注意：默认 body 仍是浅色主题（避免破坏现有 shadcn/ui 组件），
+ * 各页面在 root layout 加 `dark` 类后即可触发暗色玻璃主题。
+ */
+
+@theme {
+  /* === 玻璃基础调色板（与 helper 端 GLASS_TOKENS.brand 对齐） === */
+  --color-glass-cyan-300: #67e8f9;
+  --color-glass-cyan-400: #22d3ee;
+  --color-glass-cyan-500: #06b6d4;
+  --color-glass-cyan-600: #0891b2;
+
+  --color-glass-magenta-300: #d8b4fe;
+  --color-glass-magenta-400: #c084fc;
+  --color-glass-magenta-500: #a855f7;
+  --color-glass-magenta-600: #9333ea;
+
+  /* === 暗色画布（helper 端 canvas #050816 系） === */
+  --color-glass-canvas: #050816;
+  --color-glass-surface: #0a0f24;
+  --color-glass-surface-strong: rgba(255, 255, 255, 0.08);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-glass-border-strong: rgba(255, 255, 255, 0.2);
+
+  /* === 玻璃发光（helper 端 brand.primaryGlow 系） === */
+  --shadow-glass-glow-cyan: 0 0 24px rgba(34, 211, 238, 0.35);
+  --shadow-glass-glow-cyan-sm: 0 0 12px rgba(34, 211, 238, 0.25);
+  --shadow-glass-glow-magenta: 0 0 24px rgba(168, 85, 247, 0.35);
+
+  /* === 文字色阶（暗色主题下） === */
+  --color-glass-text-primary: rgba(255, 255, 255, 0.95);
+  --color-glass-text-secondary: rgba(255, 255, 255, 0.75);
+  --color-glass-text-muted: rgba(255, 255, 255, 0.55);
+  --color-glass-text-faint: rgba(255, 255, 255, 0.4);
+  --color-glass-text-link: #67e8f9;
+
+  /* === 状态色（暗色主题下） === */
+  --color-glass-status-info-bg: rgba(59, 130, 246, 0.12);
+  --color-glass-status-info-border: rgba(59, 130, 246, 0.4);
+  --color-glass-status-info-text: #93c5fd;
+  --color-glass-status-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-glass-status-warning-border: rgba(245, 158, 11, 0.4);
+  --color-glass-status-warning-text: #fbbf24;
+  --color-glass-status-danger-bg: rgba(239, 68, 68, 0.12);
+  --color-glass-status-danger-border: rgba(239, 68, 68, 0.4);
+  --color-glass-status-danger-text: #fca5a5;
+  --color-glass-status-success-bg: rgba(34, 197, 94, 0.12);
+  --color-glass-status-success-border: rgba(34, 197, 94, 0.4);
+  --color-glass-status-success-text: #86efac;
+}
+
+@layer utilities {
+  /* ============================================================
+   * 玻璃卡片基础（所有 tone 的根）
+   * ============================================================ */
+  .glass-card {
+    background: var(--color-glass-surface-strong);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 12px;
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+  }
+
+  /* dark 模式下加深背景（用于全局切换） */
+  .dark .glass-card {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* hover 时发光（cyan 默认；其他 tone 用 -cyan-info 等变体覆盖） */
+  .glass-card-hover:hover {
+    border-color: var(--color-glass-cyan-500);
+    box-shadow: var(--shadow-glass-glow-cyan-sm);
+  }
+
+  /* === Tone 变体：边框色微调 === */
+  .glass-cyan {
+    border-color: rgba(34, 211, 238, 0.35);
+  }
+  .glass-cyan.glass-card-hover:hover {
+    border-color: var(--color-glass-cyan-400);
+    box-shadow: var(--shadow-glass-glow-cyan-sm);
+  }
+
+  .glass-info {
+    border-color: var(--color-glass-status-info-border);
+    background: var(--color-glass-status-info-bg);
+  }
+  .glass-warning {
+    border-color: var(--color-glass-status-warning-border);
+    background: var(--color-glass-status-warning-bg);
+  }
+  .glass-danger {
+    border-color: var(--color-glass-status-danger-border);
+    background: var(--color-glass-status-danger-bg);
+  }
+  .glass-magenta {
+    border-color: rgba(168, 85, 247, 0.35);
+  }
+  .glass-magenta.glass-card-hover:hover {
+    border-color: var(--color-glass-magenta-400);
+    box-shadow: var(--shadow-glass-glow-magenta);
+  }
+  .glass-amber {
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  .glass-success {
+    border-color: var(--color-glass-status-success-border);
+    background: var(--color-glass-status-success-bg);
+  }
+  .glass-neutral {
+    /* 默认玻璃，无强调色 */
+  }
+
+  /* ============================================================
+   * 渐变文字（与 GradientText 组件等价）
+   * ============================================================ */
+  .gradient-text {
+    display: inline-block;
+    background: linear-gradient(
+      135deg,
+      var(--color-glass-cyan-400) 0%,
+      var(--color-glass-magenta-500) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+  }
+
+  /* 横线渐变（angle=90deg，用于短文本更明显） */
+  .gradient-text-h {
+    background: linear-gradient(
+      90deg,
+      var(--color-glass-cyan-400) 0%,
+      var(--color-glass-magenta-500) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ============================================================
+   * 发光按钮（与 GlowButton 组件等价）
+   * ============================================================ */
+  .glow-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 120ms ease;
+    text-decoration: none;
+    line-height: 1;
+  }
+
+  .glow-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* primary：cyan→magenta 渐变 + 发光（与 helper 端 GlowButton.primary 对齐） */
+  .glow-btn-primary {
+    background: linear-gradient(
+      135deg,
+      var(--color-glass-cyan-500) 0%,
+      var(--color-glass-magenta-500) 100%
+    );
+    color: #fff;
+    box-shadow: var(--shadow-glass-glow-cyan);
+  }
+  .glow-btn-primary:hover:not(:disabled) {
+    box-shadow:
+      0 0 32px rgba(34, 211, 238, 0.5),
+      0 0 16px rgba(168, 85, 247, 0.3);
+    transform: translateY(-1px);
+  }
+  .glow-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  /* accent：magenta→cyan 反向渐变 */
+  .glow-btn-accent {
+    background: linear-gradient(
+      135deg,
+      var(--color-glass-magenta-500) 0%,
+      var(--color-glass-cyan-500) 100%
+    );
+    color: #fff;
+    box-shadow: var(--shadow-glass-glow-magenta);
+  }
+
+  /* ghost：透明 + 玻璃边框 */
+  .glow-btn-ghost {
+    background: var(--color-glass-surface-strong);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-glass-border);
+    color: var(--color-glass-text-primary);
+  }
+  .glow-btn-ghost:hover:not(:disabled) {
+    border-color: var(--color-glass-cyan-500);
+    color: var(--color-glass-text-link);
+    box-shadow: var(--shadow-glass-glow-cyan-sm);
+  }
+
+  /* danger：红色玻璃 */
+  .glow-btn-danger {
+    background: var(--color-glass-status-danger-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-glass-status-danger-border);
+    color: var(--color-glass-status-danger-text);
+  }
+  .glow-btn-danger:hover:not(:disabled) {
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+  }
+
+  /* 尺寸变体 */
+  .glow-btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+  .glow-btn-lg {
+    padding: 14px 24px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  /* 全宽 */
+  .glow-btn-full {
+    width: 100%;
+  }
+
+  /* ============================================================
+   * 玻璃输入框（textarea / input 等）
+   * ============================================================ */
+  .glass-input {
+    background: var(--color-glass-surface-strong);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 10px;
+    color: var(--color-glass-text-primary);
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+    width: 100%;
+  }
+  .glass-input:focus {
+    border-color: var(--color-glass-cyan-500);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+  }
+  .glass-input::placeholder {
+    color: var(--color-glass-text-faint);
+  }
+
+  /* ============================================================
+   * 暗色画布（在 .dark 容器下生效）
+   * ============================================================ */
+  .dark body,
+  .dark .glass-canvas {
+    background: var(--color-glass-canvas);
+    color: var(--color-glass-text-primary);
+  }
+
+  /* 暗色画布渐变背景（PR 5.2+ /skills 改造时用） */
+  .glass-canvas-bg {
+    background:
+      radial-gradient(
+        ellipse at top left,
+        rgba(34, 211, 238, 0.08) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse at bottom right,
+        rgba(168, 85, 247, 0.08) 0%,
+        transparent 50%
+      ),
+      var(--color-glass-canvas);
+  }
+
+  /* ============================================================
+   * 玻璃进度条（Usage 页等用）
+   * ============================================================ */
+  .glass-progress {
+    height: 8px;
+    background: var(--color-glass-surface-strong);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--color-glass-border);
+  }
+  .glass-progress-fill {
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      var(--color-glass-cyan-500) 0%,
+      var(--color-glass-magenta-500) 100%
+    );
+    box-shadow: var(--shadow-glass-glow-cyan-sm);
+    transition: width 200ms ease;
+  }
+
+  /* ============================================================
+   * 玻璃 Tab / Pill 标签
+   * ============================================================ */
+  .glass-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--color-glass-surface-strong);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--color-glass-border);
+    font-size: 11px;
+    color: var(--color-glass-text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .glass-pill-active {
+    background: linear-gradient(
+      135deg,
+      var(--color-glass-cyan-500) 0%,
+      var(--color-glass-magenta-500) 100%
+    );
+    border-color: transparent;
+    color: #fff;
+    box-shadow: var(--shadow-glass-glow-cyan-sm);
+  }
+}

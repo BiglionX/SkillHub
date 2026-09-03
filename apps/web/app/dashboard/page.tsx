@@ -198,13 +198,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 统计卡片网格 */}
+      {/* 统计卡片网格（v2.0.7+：StatCard 改用 GlassTone，与 admin/page.tsx 对齐） */}
       <StatsGrid columns={4}>
         <StatCard
           title="我的 Skills"
           value={stats.totalSkills}
           icon={<Package className="w-6 h-6" />}
-          color="blue"
+          color="cyan"
           isLoading={isLoading}
           trend={{
             value: 12,
@@ -216,7 +216,7 @@ export default function DashboardPage() {
           title="总下载量"
           value={stats.totalDownloads.toLocaleString()}
           icon={<Download className="w-6 h-6" />}
-          color="green"
+          color="success"
           isLoading={isLoading}
           trend={{
             value: 8,
@@ -228,14 +228,14 @@ export default function DashboardPage() {
           title="平均评分"
           value={displayRating}
           icon={<span className="text-2xl">⭐</span>}
-          color="orange"
+          color="warning"
           isLoading={isLoading}
         />
         <StatCard
           title="总收入"
           value={`¥${stats.totalRevenue.toLocaleString()}`}
           icon={<DollarSign className="w-6 h-6" />}
-          color="purple"
+          color="magenta"
           isLoading={isLoading}
           trend={{
             value: 15,

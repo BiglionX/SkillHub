@@ -159,8 +159,10 @@ export default async function RootLayout({
   return (
     // 当前支持的 locale（zh-CN/en-US/ja-JP/ko-KR）均为 LTR；
     // 若未来引入阿拉伯语等 RTL locale，需在 Locale 类型中加入 'ar' 后再启用此分支
-    <html lang={locale} dir="ltr">
-      <body className={inter.className}>
+    // v2.0.7+：plan §4「深色为默认主题」，<html> 加 dark 类触发 glass.css 的 .dark body/glass-card 深色变体。
+    // 保留浅色主题的策略：未来可在 user pref / cookie 决定是否带 dark，本期先全面默认深色。
+    <html lang={locale} dir="ltr" className="dark">
+      <body className={`${inter.className} glass-canvas-bg min-h-screen`}>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
