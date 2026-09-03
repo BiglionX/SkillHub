@@ -1,18 +1,36 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import Home from './pages/Home';
+import Explore from './pages/Explore';
+import MySkills from './pages/MySkills';
+import Usage from './pages/Usage';
 import Settings from './pages/Settings';
+import { setHelperPort, setAnonymousId } from './lib/LlmGateway';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { StatusBadge, ToastCard } from './components/StatusBadge';
 import {
   AlertTriangle,
   Circle,
+  Compass,
+  Home as HomeIcon,
   Info,
   Link2,
+  PackageOpen,
+  BarChart3,
   Settings as SettingsIcon,
   Sparkles,
 } from 'lucide-react';
 
-type Tab = 'settings' | 'about';
+/// M4：5-Tab 体系（home / explore / my / usage / settings）
+type Tab = 'home' | 'explore' | 'my' | 'usage' | 'settings';
+const TAB_ORDER: Tab[] = ['home', 'explore', 'my', 'usage', 'settings'];
+const TAB_LABELS: Record<Tab, string> = {
+  home: '首页',
+  explore: '探索',
+  my: '我的 Skills',
+  usage: '用量',
+  settings: '设置',
+};
 
 interface HelperInfo {
   version: string;
@@ -193,7 +211,7 @@ function resolveCtaUrl(action: string): string {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('settings');
+  const [tab, setTab] = useState<Tab>('home');
   const [info, setInfo] = useState<HelperInfo | null>(null);
   const [hasKey, setHasKey] = useState(false);
   // A 轮 #P1-22：Web 端 session 绑定状态
@@ -207,17 +225,58 @@ export default function App() {
     });
   }, []);
 
-  // 启动时拉基本信息
+  // 启动时拉基本信息 + LlmGateway 注入（端口 / 游客 ID）
   useEffect(() => {
-    invoke<HelperInfo>('get_helper_info').then(setInfo).catch(() => {});
+    invoke<HelperInfo>('get_helper_info').then((i) => {
+      setInfo(i);
+      // M4：把端口注入 LlmGateway（fetch /llm/chat 时用）
+      if (typeof i.helper_port === 'number') {
+        setHelperPort(i.helper_port);
+        (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ =
+          i.helper_port;
+      }
+    }).catch(() => {});
     invoke<KeyStatus>('get_provider_keys_status')
       .then((s) => setHasKey(Object.values(s.providers).some(Boolean)))
       .catch(() => {});
     // P1-22：拉 session 快照，知道是否绑定 Web 账号
     invoke<SessionInfo>('get_session_info')
-      .then((s) => setSession(s))
+      .then((s) => {
+        setSession(s);
+        // M4：把 userId/anonymousId 注入 LlmGateway（用于 /llm/chat session_id）
+        const id = s.user_id ?? null;
+        setAnonymousId(id);
+      })
+      .catch(() => {});
+    // M4：首次启动拿游客 anonymous_id（写入 LlmGateway 缓存）
+    invoke<{ anonymous_id: string }>('ensure_guest_session')
+      .then((g) => {
+        if (g?.anonymous_id && !session?.user_id) {
+          setAnonymousId(g.anonymous_id);
+        }
+      })
       .catch(() => {});
   }, []);
+
+  // M4：键盘快捷键 Cmd/Ctrl + 1..5 切换 Tab
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const n = parseInt(e.key, 10);
+      if (Number.isNaN(n)) return;
+      const idx = n - 1;
+      if (idx >= 0 && idx < TAB_ORDER.length) {
+        e.preventDefault();
+        setTab(TAB_ORDER[idx]);
+        focusTabById(TAB_ORDER[idx]);
+      } else if (e.key.toLowerCase() === 'r') {
+        // Cmd/Ctrl + R：刷新当前 Tab 数据（占位，未来 Home/Explore 接 refetch）
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusTabById]);
 
   return (
     <div className="glass-app-layout">
@@ -234,27 +293,24 @@ export default function App() {
           </div>
         </div>
         <nav role="tablist" aria-label="主导航">
-          {/* A 轮 #H1：tabOrder 给键盘导航用；focusTabById 给子组件回调用 */}
-          {(['settings', 'about'] as Tab[]).map((t) => (
+          {/* M4：5-Tab 渲染，按 TAB_ORDER 顺序 */}
+          {TAB_ORDER.map((t) => (
             <TabButton
               key={t}
               active={tab === t}
               onClick={() => setTab(t)}
               tabId={t}
-              tabOrder={['settings', 'about']}
+              tabOrder={TAB_ORDER}
               onFocusTab={focusTabById}
             >
-              {t === 'settings' ? (
-                <span className="flex items-center gap-2">
-                  <SettingsIcon size={15} aria-hidden />
-                  <span>LLM Key 设置</span>
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <Info size={15} aria-hidden />
-                  <span>关于</span>
-                </span>
-              )}
+              <span className="flex items-center gap-2">
+                {t === 'home' && <HomeIcon size={15} aria-hidden />}
+                {t === 'explore' && <Compass size={15} aria-hidden />}
+                {t === 'my' && <PackageOpen size={15} aria-hidden />}
+                {t === 'usage' && <BarChart3 size={15} aria-hidden />}
+                {t === 'settings' && <SettingsIcon size={15} aria-hidden />}
+                <span>{TAB_LABELS[t]}</span>
+              </span>
             </TabButton>
           ))}
         </nav>
@@ -347,7 +403,43 @@ export default function App() {
               {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
             </div>
           )}
-        {/* A 轮 #H2：Tab panel 语义化。aria-labelledby 指向 tab id 让屏幕阅读器知道面板归属。 */}
+        {/* M4：5 Tab panel */}
+        <div
+          role="tabpanel"
+          id="home-panel"
+          aria-labelledby="home-tab"
+          tabIndex={0}
+          hidden={tab !== 'home'}
+        >
+          {tab === 'home' && <Home />}
+        </div>
+        <div
+          role="tabpanel"
+          id="explore-panel"
+          aria-labelledby="explore-tab"
+          tabIndex={0}
+          hidden={tab !== 'explore'}
+        >
+          {tab === 'explore' && <Explore />}
+        </div>
+        <div
+          role="tabpanel"
+          id="my-panel"
+          aria-labelledby="my-tab"
+          tabIndex={0}
+          hidden={tab !== 'my'}
+        >
+          {tab === 'my' && <MySkills />}
+        </div>
+        <div
+          role="tabpanel"
+          id="usage-panel"
+          aria-labelledby="usage-tab"
+          tabIndex={0}
+          hidden={tab !== 'usage'}
+        >
+          {tab === 'usage' && <Usage />}
+        </div>
         <div
           role="tabpanel"
           id="settings-panel"
@@ -356,19 +448,8 @@ export default function App() {
           hidden={tab !== 'settings'}
         >
           {tab === 'settings' && (
-            <AppJobsBridge
-              onNavigateToSettings={() => setTab('settings')}
-            />
+            <AppJobsBridge onNavigateToSettings={() => setTab('settings')} />
           )}
-        </div>
-        <div
-          role="tabpanel"
-          id="about-panel"
-          aria-labelledby="about-tab"
-          tabIndex={0}
-          hidden={tab !== 'about'}
-        >
-          {tab === 'about' && <About />}
         </div>
       </main>
     </div>

@@ -25,6 +25,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { Download, Trash2 } from 'lucide-react';
 import { Wrench } from 'lucide-react';
 import seedSkillsData from '../../resources/seed-skills.json';
 
@@ -1055,6 +1056,19 @@ export default function Settings({
           </p>
         </section>
 
+        {/* ========== Section 5: 用量与隐私（M4 · t11） ========== */}
+        {/* M4：导出 CSV / 手动清理 / 90 天滚动开关 */}
+        <section className="glass-card">
+          <div className="glass-top-bar" />
+          <h2 className="text-primary mb-3 text-base font-semibold">用量与隐私</h2>
+          <p className="text-secondary text-[13px] leading-relaxed mb-3">
+            您的调用记录仅存储在本机 SQLite
+            （<code className="font-mono text-[11px]">%APPDATA%\skillhub-helper\.data\usage.db</code>
+            ），不会自动上传云端。
+          </p>
+          <UsagePrivacyControls />
+        </section>
+
         {/* 验收 UX-P0-C：卸载 modal。展示后端返回的 manual_steps + 区分 error / success。
             - 成功（isError=false）：标题「请完成 X 的手动卸载」，说明桌面助手只负责发卸载指令，
               真正卸载得用户在目标软件里点一下。点击「已完成手动卸载」才调 onUninstallSkill 从 jobs 中移除。
@@ -1129,6 +1143,96 @@ export default function Settings({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * UsagePrivacyControls — M4 · t11「用量与隐私」分区子组件
+ *
+ * 提供三个操作：
+ * 1. 导出 CSV（export_usage_csv invoke）
+ * 2. 手动清理（prune_local_usage invoke，默认 90 天）
+ * 3. 90 天滚动开关（仅 UI 状态，M4 默认开）
+ */
+function UsagePrivacyControls() {
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [pruning, setPruning] = useState(false);
+  const [pruneMsg, setPruneMsg] = useState<string | null>(null);
+  const [rolling90, setRolling90] = useState(true);
+
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportMsg(null);
+    try {
+      const path = `~/Downloads/skillhub-usage-${Date.now()}.csv`;
+      const n = await invoke<number>('export_usage_csv', { path });
+      setExportMsg(`已导出 ${n} 条记录到 ${path}`);
+    } catch (e) {
+      setExportMsg(`导出失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePrune = async () => {
+    if (pruning) return;
+    if (!confirm('确定清理 90 天前的本地用量记录？此操作不可撤销。')) return;
+    setPruning(true);
+    setPruneMsg(null);
+    try {
+      const n = await invoke<number>('prune_local_usage', { days: 90 });
+      setPruneMsg(`已清理 ${n} 条过期记录`);
+    } catch (e) {
+      setPruneMsg(`清理失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPruning(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleExport()}
+          disabled={exporting}
+          className="glow-btn-ghost text-[12px]"
+        >
+          <Download size={12} aria-hidden />
+          {exporting ? '导出中…' : '导出 CSV'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handlePrune()}
+          disabled={pruning}
+          className="glow-btn-ghost text-[12px]"
+        >
+          <Trash2 size={12} aria-hidden />
+          {pruning ? '清理中…' : '手动清理 90 天前'}
+        </button>
+        <label className="flex items-center gap-2 text-[12px] text-secondary ml-auto">
+          <input
+            type="checkbox"
+            checked={rolling90}
+            onChange={(e) => setRolling90(e.target.checked)}
+            aria-label="90 天滚动清理"
+          />
+          启动时自动清理 90 天前
+        </label>
+      </div>
+      {exportMsg && (
+        <div className="text-[11px] text-muted">{exportMsg}</div>
+      )}
+      {pruneMsg && (
+        <div className="text-[11px] text-muted">{pruneMsg}</div>
+      )}
+      <p className="text-[11px] text-muted leading-relaxed">
+        助手上不会同步任何记录到云端，除非您主动点击「同步到云端」。
+        CSV 文件含 UTF-8 BOM，Excel 可直接打开。
+      </p>
     </div>
   );
 }

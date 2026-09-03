@@ -9,6 +9,8 @@ mod provider;
 mod scanner;
 mod protocol;
 mod playbook;
+/// M4：本地用量 SQLite 存储（向 llm_proxy / invoke 同时提供）
+mod usage_store;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -18,6 +20,7 @@ use tauri::Manager;
 pub use key_store::KeyStore;
 pub use llm_proxy::{LlmProxyState, ProxyHandle};
 pub use provider::ProviderConfig;
+pub use usage_store::{UsageRecordInput, UsageStore};
 
 /// A 轮 #B5：进程级 job registry（让 Web 端轮询助手看进度 / 结果）
 pub mod jobs {
@@ -127,6 +130,9 @@ pub fn run() {
     // 改为 `open_or_fallback()`，保证助手在数据目录不可写也能启动。
     let key_store = Arc::new(KeyStore::open_or_fallback());
 
+    // M4：创建本地用量 SQLite 存储（与 KeyStore 同样走 open_or_fallback）
+    let usage_store = Arc::new(UsageStore::open_or_fallback());
+
     // 启动 llm_proxy 本机 HTTP 服务（端口自动选择）
     // 修复 Tauri state not managed bug：
     // 原 `let proxy_state = Arc::new(LlmProxyState { ... });` + `app.manage(proxy_state)` 会让
@@ -135,6 +141,7 @@ pub fn run() {
     // 修正：llm_proxy::spawn 需要 Arc 自己包；app.manage 传入 LlmProxyState 值让 Tauri 自动包装。
     let proxy_handle = llm_proxy::spawn(Arc::new(LlmProxyState {
         key_store: key_store.clone(),
+        usage_store: usage_store.clone(),
     }));
 
     tauri::Builder::default()
@@ -175,8 +182,11 @@ pub fn run() {
             let port = proxy_handle.port();
             app.manage(LlmProxyState {
                 key_store: key_store.clone(),
+                usage_store: usage_store.clone(),
             });
             app.manage(ProxyHandle(port));
+            // M4：同时把 UsageStore 独立注入，供新 invoke 命令直接使用（不走 llm_proxy state）
+            app.manage(usage_store.clone());
             // A 轮 #B5：注册 JobRegistry，让 install_skill 能写入让 Web 轮询
             app.manage(jobs::JobRegistry::default());
 
@@ -225,6 +235,13 @@ pub fn run() {
             run_playbook,
             get_job_state,
             list_jobs,
+            // M4：用量与游客会话
+            record_usage,
+            get_local_usage_summary,
+            export_usage_csv,
+            prune_local_usage,
+            ensure_guest_session,
+            get_recommended_for_local_software,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 启动失败");
@@ -914,4 +931,83 @@ async fn heartbeat_loop(helper_port: u16, key_store: Arc<KeyStore>) {
             .unwrap_or(60);
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
+}
+
+// =============================================================================
+// M4：6 条新 invoke 命令实现（t05）
+// - record_usage / get_local_usage_summary / export_usage_csv /
+//   prune_local_usage / ensure_guest_session /
+//   get_recommended_for_local_software（fetch_recommended_skills 的语义化别名）
+// =============================================================================
+
+/// M4：手动记账。前端 NluSearchBox 在 LLM 调用成功后再写一条（防 /llm/chat
+/// 失败重试造成重复：调用方传 `client_record_id = crypto.randomUUID()`）
+#[tauri::command]
+async fn record_usage(
+    usage_store: tauri::State<'_, Arc<UsageStore>>,
+    rec: UsageRecordInput,
+) -> Result<bool, String> {
+    usage_store
+        .record(rec)
+        .map_err(|e| format!("record_usage 失败：{}", e))
+}
+
+/// M4：返回本地汇总。Usage Tab 在登录态也可直接读本机数据，无须走云端聚合。
+#[tauri::command]
+async fn get_local_usage_summary(
+    usage_store: tauri::State<'_, Arc<UsageStore>>,
+    range: Option<String>,
+) -> Result<crate::usage_store::UsageSummary, String> {
+    let r = range.unwrap_or_else(|| "7d".to_string());
+    usage_store
+        .summarize(&r)
+        .map_err(|e| format!("summarize({}) 失败：{}", r, e))
+}
+
+/// M4：导出 CSV（含 UTF-8 BOM，Excel 直接打开）。Settings 页"导出"按钮调。
+#[tauri::command]
+async fn export_usage_csv(
+    usage_store: tauri::State<'_, Arc<UsageStore>>,
+    path: String,
+) -> Result<u64, String> {
+    let p = std::path::PathBuf::from(path);
+    usage_store
+        .export_csv(&p)
+        .map_err(|e| format!("export_csv 失败：{}", e))
+}
+
+/// M4：手动清理 N 天前的本地记录。启动钩子默认 90 天；Settings 页可手动调。
+#[tauri::command]
+async fn prune_local_usage(
+    usage_store: tauri::State<'_, Arc<UsageStore>>,
+    days: Option<u32>,
+) -> Result<u64, String> {
+    let d = days.unwrap_or(90);
+    usage_store
+        .prune_older_than(d)
+        .map_err(|e| format!("prune({}d) 失败：{}", d, e))
+}
+
+/// M4：首次启动时前端调一次，拿 anonymousId 写 localStorage。
+/// M4 决策：游客不限次，所以本函数仅返回标识，不强制引导注册。
+/// bind-guest 路由在 Web 端另设，详见 `apps/web/app/api/v2/auth/bind-guest/`。
+#[tauri::command]
+async fn ensure_guest_session() -> Result<serde_json::Value, String> {
+    let anonymous_id = uuid::Uuid::new_v4().to_string();
+    let machine_fingerprint = machine_uid::get()
+        .unwrap_or_else(|_| "unknown-machine".to_string());
+    Ok(serde_json::json!({
+        "anonymous_id": anonymous_id,
+        "machine_fingerprint": machine_fingerprint,
+    }))
+}
+
+/// M4：原 `fetch_recommended_skills` 的语义化别名（PRD §14.4 表 14-7）
+/// 内部直接转发，旧命令保留以兼容现存调用方。
+#[tauri::command]
+async fn get_recommended_for_local_software(
+    installed: Vec<String>,
+    limit: Option<u32>,
+) -> Result<Vec<serde_json::Value>, String> {
+    fetch_recommended_skills(installed, limit).await
 }

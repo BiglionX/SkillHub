@@ -34,7 +34,14 @@ pub struct ChatRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatResponse {
     pub content: String,
+    /// 总 token 数（in + out），保留旧字段以兼容既有调用方
     pub tokens_used: u32,
+    /// 输入 token 数（OpenAI 兼容响应 `usage.prompt_tokens`），用于按 Provider 单价精确估算成本
+    /// 若上游未返回，按 `tokens_used / 2` 估算
+    pub tokens_in: u32,
+    /// 输出 token 数（OpenAI 兼容响应 `usage.completion_tokens`）
+    /// 若上游未返回，按 `tokens_used - tokens_in` 补齐
+    pub tokens_out: u32,
     pub duration_ms: u64,
 }
 
@@ -125,11 +132,25 @@ impl LlmProvider {
             .ok_or_else(|| ProviderError::Api("响应缺少 choices".to_string()))?
             .to_string();
 
-        let tokens = data["usage"]["total_tokens"].as_u64().unwrap_or(0) as u32;
+        // M4：从 OpenAI 兼容 usage 字段拆出 prompt / completion token 数（用于按 Provider 单价精确估算成本）
+        let usage = &data["usage"];
+        let total_tokens = usage["total_tokens"].as_u64().unwrap_or(0) as u32;
+        let prompt_tokens = usage["prompt_tokens"].as_u64().map(|n| n as u32);
+        let completion_tokens = usage["completion_tokens"].as_u64().map(|n| n as u32);
+        // fallback：上游若未拆字段（如某些自托管 vLLM），按 total / 2 估算
+        let (tokens_in, tokens_out) = match (prompt_tokens, completion_tokens) {
+            (Some(p), Some(c)) => (p, c),
+            _ => {
+                let half = total_tokens / 2;
+                (half, total_tokens - half)
+            }
+        };
 
         Ok(ChatResponse {
             content,
-            tokens_used: tokens,
+            tokens_used: total_tokens,
+            tokens_in,
+            tokens_out,
             duration_ms: started.elapsed().as_millis() as u64,
         })
     }

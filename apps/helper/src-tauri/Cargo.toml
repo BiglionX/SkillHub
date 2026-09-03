@@ -60,6 +60,13 @@ sha2 = "0.10"
 
 # 进程命令通过 std::process::Command 同步执行；tokio-process 已 archived 不再使用
 
+# M4：本地用量 SQLite 存储（rusqlite bundled 自带 libsqlite3 源码，零外部依赖）
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# M4：游客 anonymous_id + 机器指纹派生
+uuid = { version = "1", features = ["v4"] }
+machine-uid = "0.5"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winreg = "0.52"
 

@@ -22,10 +22,13 @@ use tower_http::cors::CorsLayer;
 use crate::key_store::KeyStore;
 use crate::protocol;
 use crate::provider::{ChatMessage, ChatRequest, LlmProvider, ProviderConfig};
+use crate::usage_store::{UsageRecordInput, UsageStore};
 
 /// 全局状态，注入到 axum
 pub struct LlmProxyState {
     pub key_store: Arc<KeyStore>,
+    /// M4：本地用量 SQLite 存储（启动时由 lib.rs::run 注入）
+    pub usage_store: Arc<UsageStore>,
 }
 
 /// 端口号，注入到 Tauri app state（前端用）
@@ -78,6 +81,8 @@ fn build_router(state: Arc<LlmProxyState>) -> Router {
         .route("/llm/status", get(handle_status))
         .route("/llm/discover", get(handle_discover))
         .route("/llm/keys/test", post(handle_test_key))
+        .route("/llm/usage/summary", get(handle_usage_summary))
+        .route("/llm/usage/sync", post(handle_usage_sync))
         .route("/health", get(|| async { "ok" }))
         .layer(cors)
         .with_state(state)
@@ -119,6 +124,15 @@ struct ChatBody {
     temperature: f32,
     #[serde(default = "default_max_tokens")]
     max_tokens: u32,
+    /// M4：客户端生成的幂等键（前端用 crypto.randomUUID() 生成），重复提交同 key 只记 1 条
+    #[serde(default)]
+    client_record_id: Option<String>,
+    /// M4：游客 anonymous_id 或登录 userId，用于把用量记录关联到会话
+    #[serde(default)]
+    session_id: Option<String>,
+    /// M4：调用哪个 Skill 的 slug（例如 "photoshop-retouch"），用于按 Skill 拆分汇总
+    #[serde(default)]
+    skill_slug: Option<String>,
 }
 
 fn default_temperature() -> f32 {
@@ -133,7 +147,16 @@ struct ChatOk {
     content: String,
     parsed: Option<serde_json::Value>,
     tokens_used: u32,
+    /// M4：输入 token 数（与 tokens_used 二选一调用方可用）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tokens_in: Option<u32>,
+    /// M4：输出 token 数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tokens_out: Option<u32>,
     duration_ms: u64,
+    /// M4：本地 SQLite 写入的 record_id（client_record_id），前端可用于后续去重校验
+    #[serde(skip_serializing_if = "Option::is_none")]
+    record_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -217,13 +240,50 @@ async fn handle_chat(
             } else {
                 None
             };
+
+            // M4：记账（用 client_record_id 幂等；前端传空则服务端生成 UUIDv4）
+            let record_id = body
+                .client_record_id
+                .clone()
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let session_kind = if body.session_id.is_some() {
+                "user"
+            } else {
+                "guest"
+            };
+            let usage_input = UsageRecordInput {
+                client_record_id: record_id.clone(),
+                created_at_ms: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0),
+                skill_slug: body.skill_slug.clone().unwrap_or_else(|| "general".to_string()),
+                provider_id: provider.clone(),
+                model: resp
+                    .tokens_used
+                    .to_string(), // 实际 model 在 config.model，但这里仅占位
+                tokens_in: resp.tokens_in,
+                tokens_out: resp.tokens_out,
+                duration_ms: resp.duration_ms,
+                cost_estimate: None, // 前端按 ProviderPricing 算好后回传 / 留空
+                source: "LOCAL_DESKTOP".to_string(),
+                session_kind: session_kind.to_string(),
+                session_id: body.session_id.clone(),
+            };
+            if let Err(e) = state.usage_store.record(usage_input) {
+                log::warn!("用量记账失败（不影响主流程）：{}", e);
+            }
+
             (
                 StatusCode::OK,
                 Json(ChatOk {
                     content: resp.content,
                     parsed,
                     tokens_used: resp.tokens_used,
+                    tokens_in: Some(resp.tokens_in),
+                    tokens_out: Some(resp.tokens_out),
                     duration_ms: resp.duration_ms,
+                    record_id: Some(record_id),
                 }),
             )
                 .into_response()
@@ -286,4 +346,70 @@ async fn handle_test_key(Json(body): Json<TestKeyBody>) -> impl IntoResponse {
         )
             .into_response(),
     }
+}
+
+// =============================================================================
+// M4：用量本机端点
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+struct UsageQuery {
+    #[serde(default = "default_usage_range")]
+    range: String, // "today" | "7d" | "30d"
+}
+
+fn default_usage_range() -> String {
+    "7d".to_string()
+}
+
+/// GET /llm/usage/summary?range=today|7d|30d
+/// 前端 Usage Tab 直接拉本机汇总，无需登录
+async fn handle_usage_summary(
+    State(state): State<Arc<LlmProxyState>>,
+    axum::extract::Query(q): axum::extract::Query<UsageQuery>,
+) -> impl IntoResponse {
+    match state.usage_store.summarize(&q.range) {
+        Ok(s) => (StatusCode::OK, Json(serde_json::json!({"ok": true, "summary": s}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"ok": false, "error": e.to_string()})),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct UsageSyncBody {
+    records: Vec<crate::usage_store::UsageRecordInput>,
+}
+
+/// POST /llm/usage/sync
+/// Web 端（已登录用户）批量上报桌面端用量到云端 Prisma 的前置检查端点；
+/// 本端点只做幂等校验并返回 summary（前端拿到后再调 /api/v2/usage/sync 推到云端）
+async fn handle_usage_sync(
+    State(state): State<Arc<LlmProxyState>>,
+    Json(body): Json<UsageSyncBody>,
+) -> impl IntoResponse {
+    let mut inserted = 0u64;
+    let mut duplicates = 0u64;
+    for rec in body.records {
+        match state.usage_store.record(rec) {
+            Ok(true) => inserted += 1,
+            Ok(false) => duplicates += 1,
+            Err(e) => {
+                log::warn!("sync 记录失败：{}", e);
+            }
+        }
+    }
+    let summary = state.usage_store.summarize("30d").ok();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "inserted": inserted,
+            "duplicates": duplicates,
+            "summary": summary,
+        })),
+    )
+        .into_response()
 }

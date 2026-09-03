@@ -38,6 +38,10 @@ model User {
   collections        SkillCollection[]
   comments           SkillComment[]
   feedbacks          SkillFeedback[]
+  /// M4：游客会话（匿名 UUID v4 + 机器指纹），bind-guest 后关联到用户
+  guestSessions      GuestSession[]
+  /// M4：用量记录（每次 LLM 调用，bind 前存 guestSessionId，bind 后存 userId）
+  usageRecords       UsageRecord[]
   skills             Skill[]
   following          UserFollow[]        @relation("Followers")
   followers          UserFollow[]        @relation("Following")
@@ -848,6 +852,111 @@ model SkillPackItem {
 
   @@id([packId, childSkillId])
   @@map("skill_pack_items")
+}
+
+/// v3 M4：Provider 单价（云端权威，桌面端 1 小时缓存）
+/// 一行代表一次"生效"，保留历史快照便于审计 / 回溯单价变更
+model ProviderPricing {
+  id           String   @id @default(cuid())
+  /// Provider 标识（与 desktop helper 端 Provider 枚举一致）
+  /// 取值："deepseek" | "openai" | "zhipu" | "anthropic" | "moonshot" | ...
+  provider     String
+  /// 模型 ID，如 "deepseek-chat"、"gpt-4o-mini"、"glm-4-flash"
+  model        String
+  /// 每 1k input tokens 单价（人民币）
+  inputPer1k   Decimal  @db.Decimal(10, 6)
+  /// 每 1k output tokens 单价（人民币）
+  outputPer1k  Decimal  @db.Decimal(10, 6)
+  /// 货币（默认 CNY）
+  currency     String   @default("CNY")
+  /// 生效时间（同一 (provider, model) 可有多条历史快照）
+  effectiveAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([provider, model, effectiveAt])
+  @@index([provider, model, effectiveAt(sort: Desc)])
+  @@map("provider_pricing")
+}
+
+/// v3 M4：游客会话（桌面助手 / 浏览器匿名使用）
+/// - 未登录用户也可享受 NLU 搜索 + Skill 安装（v2.0.2 D6 决策）
+/// - bind-guest 接口将匿名会话合并到登录账号
+model GuestSession {
+  id                 String   @id @default(cuid())
+  /// 桌面助手生成的 UUID v4 匿名 ID（桌面端 `ensure_guest_session` invoke 返回）
+  anonymousId        String   @unique
+  /// 机器指纹（hash(hwid + osVersion + appVersion)，辅助去重 + 反作弊）
+  machineFingerprint String?
+  /// 绑定到的登录用户（bind-guest 后回填；bind 前为 null）
+  userId             String?
+  user               User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// 助手版本（"0.3.05" 等）
+  helperVersion      String?
+  /// OS 版本（"Windows 11 23H2" / "macOS 14.5" / "Ubuntu 22.04"）
+  osVersion          String?
+  /// 首次出现时间
+  firstSeenAt        DateTime @default(now())
+  /// 最近一次心跳 / 用量上报时间
+  lastSeenAt         DateTime @default(now())
+  /// bind-guest 时间
+  bindAt             DateTime?
+  /// 该会话产生的用量记录（bind 前写入，bind 后保留供审计）
+  usageRecords       UsageRecord[]
+
+  @@index([userId])
+  @@index([lastSeenAt(sort: Desc)])
+  @@index([machineFingerprint])
+  @@map("guest_sessions")
+}
+
+/// v3 M4：用量记录（每次 LLM 调用的成本 + 元数据）
+/// - 桌面助手 record_usage 写入（带 client_record_id 幂等去重）
+/// - bind-guest 前后都写入本表；userId 和 guestSessionId 至少一个非空
+/// - costCny 由云端按 ProviderPricing 表回填或估算
+model UsageRecord {
+  id              String   @id @default(cuid())
+  /// 匿名会话来源（bind 前写入）
+  guestSessionId  String?
+  guestSession    GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  /// 登录用户（bind 后或登录后写入）
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// 调起的 Skill slug（Home/Explore 搜索调用时为 null）
+  skillSlug       String?
+  /// Provider 标识（"deepseek" | "openai" | "zhipu"）
+  provider        String
+  /// 模型 ID
+  model           String
+
+  /// OpenAI 兼容 usage 字段
+  tokensIn        Int      @default(0)
+  tokensOut       Int      @default(0)
+  /// 助手 → Provider 总耗时
+  durationMs      Int?
+
+  /// 估算成本（人民币，由云端根据 ProviderPricing 计算后回填）
+  costCny         Decimal? @db.Decimal(10, 6)
+
+  /// 幂等去重 key（桌面端 crypto.randomUUID）
+  /// - 客户端重复发请求不会写入多行
+  /// - 用于断网重传 / 离线排队后批量上报
+  clientRecordId  String?  @unique
+
+  /// 调用实际发生时间（桌面端取 Date.now()，批量上报时为最早一条）
+  occurredAt      DateTime @default(now())
+  /// 入库时间
+  createdAt       DateTime @default(now())
+
+  /// 路由路径（"helper" | "cache" | "cloud" | "heuristic"）
+  path            String?  @default("helper")
+
+  @@index([userId, occurredAt(sort: Desc)])
+  @@index([guestSessionId, occurredAt(sort: Desc)])
+  @@index([skillSlug])
+  @@index([provider])
+  @@index([occurredAt(sort: Desc)])
+  @@map("usage_records")
 }
 
 /// Skill 多语言翻译表

@@ -108,6 +108,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.8(react@19.2.8)
+      recharts:
+        specifier: ^2.12.7
+        version: 2.15.4(react-dom@19.2.8)(react@19.2.8)
     devDependencies:
       '@types/react':
         specifier: ^19.0.0

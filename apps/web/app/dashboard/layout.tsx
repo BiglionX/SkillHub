@@ -34,6 +34,9 @@ export default async function DashboardLayout({
                 <Link href="/dashboard/skills" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
                   我的 Skills
                 </Link>
+                <Link href="/dashboard/usage" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                  用量
+                </Link>
                 <Link href="/dashboard/bounties" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
                   我的悬赏
                 </Link>
