@@ -43,6 +43,11 @@ pub struct ChatResponse {
     /// 若上游未返回，按 `tokens_used - tokens_in` 补齐
     pub tokens_out: u32,
     pub duration_ms: u64,
+    /// 实际使用的模型 ID（取自请求体 `model` 字段，不是上游回显的 `model`）。
+    /// 重要：桌面端 `llm_proxy.rs` 会把此字段写入 `usage_records.model`，若缺失
+    /// 会导致 SQLite 里所有记录的 model 列被填成 tokens 数字串（见 commit 后
+    /// CRITICAL #2 复盘）。
+    pub model: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -152,6 +157,7 @@ impl LlmProvider {
             tokens_in,
             tokens_out,
             duration_ms: started.elapsed().as_millis() as u64,
+            model: model.clone(),
         })
     }
 

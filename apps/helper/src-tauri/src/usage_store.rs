@@ -263,16 +263,26 @@ impl UsageStore {
 
     /// 清理 N 天前的数据（M4：90 天滚动）
     /// 返回删除的行数
+    ///
+    /// 安全说明：旧版本曾在 DELETE 之后立即在同一函数内对 `self.conn` 二次加锁
+    /// 以运行 `PRAGMA wal_checkpoint(TRUNCATE)`。`std::sync::Mutex` 不可重入，
+    /// 第二次 lock() 会永久阻塞 → 设置页手动清理按钮触发后整个 Tauri 助手卡死，
+    /// 且 `prune_removes_old_records` 单元测试一旦真正运行也会卡死。
+    /// 现在把整个 DELETE 包在一个作用域里让 conn drop 释放锁，并去掉手动 WAL
+    /// checkpoint（SQLite 的 WAL 由 autocommit 自动管理，无需每次都手动）。
     pub fn prune_older_than(&self, days: u32) -> Result<u64> {
         let cutoff_ms = chrono_like_now_ms() - (days as i64) * 86_400_000;
-        let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("UsageStore 锁失败：{}", e))?;
-        let n = conn.execute(
-            "DELETE FROM usage_records WHERE created_at_ms < ?1",
-            params![cutoff_ms],
-        )?;
-        // 顺便 VACUUM 回收空间（异步线程跑，不阻塞调用）
-        let conn2 = self.conn.lock().map_err(|e| anyhow::anyhow!("UsageStore 锁失败：{}", e))?;
-        let _ = conn2.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        let n = {
+            let conn = self
+                .conn
+                .lock()
+                .map_err(|e| anyhow::anyhow!("UsageStore 锁失败：{}", e))?;
+            conn.execute(
+                "DELETE FROM usage_records WHERE created_at_ms < ?1",
+                params![cutoff_ms],
+            )?
+        };
+        // WAL 自动 checkpoint；不手动跑（避免二次加锁死锁）
         Ok(n as u64)
     }
 

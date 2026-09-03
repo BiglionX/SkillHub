@@ -259,9 +259,10 @@ async fn handle_chat(
                     .unwrap_or(0),
                 skill_slug: body.skill_slug.clone().unwrap_or_else(|| "general".to_string()),
                 provider_id: provider.clone(),
-                model: resp
-                    .tokens_used
-                    .to_string(), // 实际 model 在 config.model，但这里仅占位
+                // CRITICAL #2 复盘：必须用 resp.model（请求体里的 model），不能拿
+                // tokens_used（数字）的 to_string 填进来，否则 SQLite model 列
+                // 全是数字串，CSV 导出与按 model 聚合全部失效。
+                model: resp.model.clone(),
                 tokens_in: resp.tokens_in,
                 tokens_out: resp.tokens_out,
                 duration_ms: resp.duration_ms,
