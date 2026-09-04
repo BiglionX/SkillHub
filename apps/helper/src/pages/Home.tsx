@@ -32,7 +32,14 @@ const DEFAULT_SYSTEM_PROMPT =
   '你是 SkillHub 意图解析器。读取用户输入后，输出 JSON：' +
   '{ "software_tags": [...], "intent_tags": [...], "skill_category": "A"|"B"|"C", "confidence": 0..1 }';
 
-export default function Home() {
+export interface HomeProps {
+  /// F20：当前是否已配 LLM Key（从 App.tsx 透传）
+  hasKey?: boolean;
+  /// F20：用户在 SkillCard Dialog 点 [现在配] 时回调
+  onNeedKey?: () => void;
+}
+
+export default function Home({ hasKey, onNeedKey }: HomeProps = {}) {
   const [detectedSoftware, setDetectedSoftware] = useState<string[]>([]);
   const [recommended, setRecommended] = useState<RecommendedSkill[]>([]);
   const [installedSlugs, setInstalledSlugs] = useState<Set<string>>(new Set());
@@ -48,18 +55,19 @@ export default function Home() {
         const installed = await invoke<InstalledSkill[]>('get_installed_skills').catch(() => []);
         setInstalledSlugs(new Set(installed.map((s) => s.slug)));
         // 推荐 Skill
-        const skills = await invoke<{ slug: string; name: string; software?: string; blurb?: string }[]>(
+        const skills = await invoke<{ slug: string; name: string; software?: string; blurb?: string; category?: 'A' | 'B' | 'C' }[]>(
           'get_recommended_for_local_software',
           {
             installed: sw.map((s) => s.software_tag),
             limit: 12,
           },
-        ).catch(() => [] as { slug: string; name: string; software?: string; blurb?: string }[]);
+        ).catch(() => [] as { slug: string; name: string; software?: string; blurb?: string; category?: 'A' | 'B' | 'C' }[]);
         const recommendedList: RecommendedSkill[] = skills.map((s) => ({
           slug: s.slug,
           name: s.name,
           software: s.software ?? '',
           blurb: s.blurb,
+          category: s.category,
         }));
         setRecommended(recommendedList);
         // 最近 3 条用量
@@ -116,6 +124,8 @@ export default function Home() {
                   key={s.slug}
                   skill={s}
                   installed={installedSlugs.has(s.slug)}
+                  hasKey={hasKey}
+                  onNeedKey={onNeedKey}
                   onInstall={() => invoke('install_skill', { slug: s.slug, skill: s }).catch(() => {})}
                 />
               ))}

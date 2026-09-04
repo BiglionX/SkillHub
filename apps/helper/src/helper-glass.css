@@ -762,6 +762,23 @@
   text-overflow: ellipsis;
 }
 
+/* F20：未配 LLM Key 时的高亮修饰类（amber 边框 + 背景暖调）。
+   仅作为 .glass-sidebar-status 的修饰，不能独立使用。 */
+.glass-sidebar-status.glass-sidebar-status-warn {
+  border-color: rgba(251, 191, 36, 0.55);
+  background:
+    linear-gradient(135deg, rgba(251, 191, 36, 0.10), rgba(251, 191, 36, 0.04)),
+    var(--g-bg-card);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15) inset;
+}
+
+.glass-sidebar-status.glass-sidebar-status-warn:hover {
+  border-color: rgba(251, 191, 36, 0.75);
+  background:
+    linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(251, 191, 36, 0.06)),
+    var(--g-bg-card);
+}
+
 /* 右侧主区 */
 .glass-main {
   min-width: 0;

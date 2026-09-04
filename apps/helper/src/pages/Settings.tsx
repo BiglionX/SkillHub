@@ -210,6 +210,22 @@ export default function Settings({
   // v2.0.6：种子推荐跳转失败提示（独立维度，不受 Provider 切换影响）
   const [seedError, setSeedError] = useState<string | null>(null);
 
+  // F20：从其他 Tab 点 [现在配] 后跳过来，自动展开 Key 编辑面板。
+  // App.tsx 跳 Settings Tab 时会写 location.hash = '#llm-key-section'，
+  // 这里监听到后 setKeyExpanded(true) + 滚动到该 section，并清掉 hash 避免刷新时重复触发。
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash !== '#llm-key-section') return;
+    setKeyExpanded(true);
+    // 下一帧再 scroll，等 Key 编辑面板完成展开动画
+    requestAnimationFrame(() => {
+      document.getElementById('llm-key-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    if (window.history?.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
+
   // 验收 UX-P0-C：卸载 Skill 后弹 modal 展示 manual_steps。
   // 原 v2.0.5 用 `window.confirm` 一步吃完，前后端不约定 manual_steps 是否展示；
   // 现在明确为软卸载：modal 告知「在 X 软件里手动卸载插件」的清单 + 写明不是硬卸载。
@@ -536,7 +552,7 @@ export default function Settings({
             <div className="mb-4 text-cyan-400">
               <Wrench size={48} strokeWidth={1.5} />
             </div>
-            <h1 className="mb-2 text-2xl font-bold gradient-text-h">欢迎使用 SkillHub Helper</h1>
+            <h1 className="mb-2 text-2xl font-bold gradient-text-h">欢迎使用 SkillHub</h1>
             <p className="text-muted mb-6 text-sm leading-relaxed">
               桌面助手负责三件事：① 转发 LLM 调用 ② 扫描你装了哪些软件 ③ 推荐并一键安装适用 Skills。
               <br />
@@ -728,7 +744,8 @@ export default function Settings({
     <div className="glass-canvas px-6 py-6 glass-scroll">
       <div className="mx-auto max-w-xl space-y-4">
         {/* ========== Section 1: LLM Key ========== */}
-        <section className="glass-card">
+        {/* F20：id="llm-key-section" 作为锚点，handleNeedKey 跳过来时定位到这里 + 自动展开。 */}
+        <section className="glass-card" id="llm-key-section">
           <div className="glass-top-bar" />
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">

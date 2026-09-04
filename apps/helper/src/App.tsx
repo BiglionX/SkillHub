@@ -274,6 +274,16 @@ export default function App() {
     }
   }, []);
 
+  // F20：C 类 Skill 未配 Key 时点 [现在配] 的回调——跳 Settings Tab + 写 hash
+  // 让 Settings.tsx 里的 useEffect 监听到后自动展开 Key 编辑面板。
+  // 仅在未配 Key 时写 hash，避免覆盖用户自己设置的 hash。
+  const handleNeedKey = useCallback(() => {
+    setTab('settings');
+    if (!hasKey && typeof window !== 'undefined') {
+      window.location.hash = 'llm-key-section';
+    }
+  }, [hasKey]);
+
   // M4：键盘快捷键 Cmd/Ctrl + 1..5 切换 Tab
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -304,7 +314,7 @@ export default function App() {
             <Sparkles size={18} strokeWidth={2.5} />
           </div>
           <div className="glass-sidebar-brand">
-            <span className="glass-sidebar-brand-name">SkillHub Helper</span>
+            <span className="glass-sidebar-brand-name">SkillHub</span>
             <span className="glass-sidebar-brand-version">v2.0.7</span>
           </div>
         </div>
@@ -331,10 +341,21 @@ export default function App() {
           ))}
         </nav>
         <div className="glass-sidebar-footer">
-          {/* A 轮 #G1：Key 状态圆点 + 文字。改为 sidebar 底部玻璃化胶囊。 */}
+          {/* F20：Key 状态圆点 + 文字。改为可点击：未配 Key 时跳 Settings。
+              未配 Key 状态下加 amber 边框高亮（glass-sidebar-status-warn 修饰类）。 */}
           <div
-            className="glass-sidebar-status"
-            aria-label={hasKey ? 'LLM Key 已配置' : 'LLM Key 未配置'}
+            className={`glass-sidebar-status ${!hasKey ? 'glass-sidebar-status-warn' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-label={hasKey ? 'LLM Key 已配置' : '未配置 LLM Key · 点此跳设置'}
+            onClick={() => setTab('settings')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setTab('settings');
+              }
+            }}
+            style={{ cursor: 'pointer' }}
           >
             <span aria-hidden
               className={hasKey ? 'status-dot-success' : 'status-dot-neutral'}
@@ -427,7 +448,7 @@ export default function App() {
           tabIndex={0}
           hidden={tab !== 'home'}
         >
-          {tab === 'home' && <Home />}
+          {tab === 'home' && <Home hasKey={hasKey} onNeedKey={handleNeedKey} />}
         </div>
         <div
           role="tabpanel"
@@ -436,7 +457,7 @@ export default function App() {
           tabIndex={0}
           hidden={tab !== 'explore'}
         >
-          {tab === 'explore' && <Explore />}
+          {tab === 'explore' && <Explore hasKey={hasKey} onNeedKey={handleNeedKey} />}
         </div>
         <div
           role="tabpanel"
@@ -1152,7 +1173,7 @@ function About() {
         <div className="glass-card-elevated relative">
           <div className="glass-top-bar-wide" />
           <div className="mb-4 text-5xl">{"\uD83D\uDC9A"}</div>
-          <h1 className="mb-2 text-2xl font-bold gradient-text-h">关于 SkillHub Helper</h1>
+          <h1 className="mb-2 text-2xl font-bold gradient-text-h">关于 SkillHub</h1>
           <p className="text-secondary text-sm leading-7 mb-4">
             SkillHub 桌面助手是 <strong>Skill 的执行载体</strong>，不负责浏览/推荐——那些都在
             <a

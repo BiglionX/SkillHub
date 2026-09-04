@@ -25,7 +25,14 @@ interface InstalledSkill {
   slug: string;
 }
 
-export default function Explore() {
+export interface ExploreProps {
+  /// F20：当前是否已配 LLM Key（从 App.tsx 透传）
+  hasKey?: boolean;
+  /// F20：用户在 SkillCard Dialog 点 [现在配] 时回调
+  onNeedKey?: () => void;
+}
+
+export default function Explore({ hasKey, onNeedKey }: ExploreProps = {}) {
   const [softwareFilter, setSoftwareFilter] = useState<string>('all');
   const [keyword, setKeyword] = useState('');
   const [installed, setInstalled] = useState<Set<string>>(new Set());
@@ -128,6 +135,8 @@ export default function Explore() {
                 key={s.slug}
                 skill={s}
                 installed={installed.has(s.slug)}
+                hasKey={hasKey}
+                onNeedKey={onNeedKey}
                 onInstall={() =>
                   invoke('install_skill', { slug: s.slug, skill: s }).catch(() => {})
                 }
