@@ -78,7 +78,10 @@ async fn scan_one(_key: &str, rule: &SoftwareRule) -> Option<ScannedSoftware> {
     #[cfg(target_os = "windows")]
     {
         if let Some(win) = &rule.windows {
-            if let Some(found) = scan_windows(win) {
+            // v2.0.7+：scanner.rs 注册表匹配改为通用 DisplayName 子串，
+            // 把 rule.software_tag + rule.display_name 都作为 needle 传入。
+            // 修复前 hardcode "photoshop" 导致 21 个 software_tag 只有 photoshop 能命中注册表。
+            if let Some(found) = scan_windows(win, &rule.software_tag, &rule.display_name) {
                 return Some(ScannedSoftware {
                     software_tag: rule.software_tag.clone(),
                     display_name: rule.display_name.clone(),
@@ -118,28 +121,47 @@ async fn scan_one(_key: &str, rule: &SoftwareRule) -> Option<ScannedSoftware> {
 }
 
 #[cfg(target_os = "windows")]
-fn scan_windows(rules: &OsRules) -> Option<String> {
+fn scan_windows(rules: &OsRules, software_tag: &str, display_name: &str) -> Option<String> {
     use winreg::RegKey;
     use winreg::enums::HKEY_LOCAL_MACHINE;
 
-    // 1. 扫注册表 Uninstall 列表
-    if !rules.uninstall_keys.is_empty() {
-        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-        if let Ok(uninstall) = hklm.open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall") {
-            for key in uninstall.enum_keys().flatten() {
-                if let Ok(sub) = uninstall.open_subkey(&key) {
-                    if let Ok(name) = sub.get_value::<String, _>("DisplayName") {
-                        // 简单匹配（生产环境应该匹配 vendor + name）
-                        let lower = name.to_lowercase();
-                        if lower.contains("photoshop") && rules.common_paths.iter().any(|p| p.contains("photoshop")) {
-                            if let Ok(install_location) = sub.get_value::<String, _>("InstallLocation") {
-                                if !install_location.is_empty() && Path::new(&install_location).exists() {
-                                    return Some(install_location);
-                                }
-                            }
-                        }
-                    }
-                }
+    // 仅当 rule 显式声明了 uninstall_keys / registry_paths 时才扫注册表，
+    // 避免对每个 rule 都遍历整个 HKLM Uninstall（21 个 rule × 数百个 subkey 太慢）。
+    if rules.uninstall_keys.is_empty() && rules.registry_paths.is_empty() {
+        return None;
+    }
+
+    // v2.0.7+：needle 改为 rule 自身的 display_name + software_tag（小写）。
+    // 修复前 hardcode "photoshop" 让 21 个 rule 里只有 photoshop 能命中注册表。
+    let needles = [
+        display_name.to_lowercase(),
+        software_tag.to_lowercase(),
+    ];
+    // needles 为空（理论上不会发生，yml 顶层字段都有 default）就跳过注册表。
+    if needles.iter().all(|n| n.is_empty()) {
+        return None;
+    }
+
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let uninstall = hklm
+        .open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall")
+        .ok()?;
+    for key in uninstall.enum_keys().flatten() {
+        let sub = match uninstall.open_subkey(&key) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let name = match sub.get_value::<String, _>("DisplayName") {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+        let lower = name.to_lowercase();
+        if !needles.iter().any(|n| !n.is_empty() && lower.contains(n.as_str())) {
+            continue;
+        }
+        if let Ok(install_location) = sub.get_value::<String, _>("InstallLocation") {
+            if !install_location.is_empty() && Path::new(&install_location).exists() {
+                return Some(install_location);
             }
         }
     }

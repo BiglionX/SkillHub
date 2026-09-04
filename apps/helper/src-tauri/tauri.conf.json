@@ -48,6 +48,11 @@
     "shortDescription": "SkillHub 本地安装助手",
     "longDescription": "SkillHub 桌面助手：注册 skillhub:// 协议、扫描本机软件、执行安装剧本、转发 LLM 调用。",
     "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false
+      },
       "wix": {
         "language": "zh-CN"
       }

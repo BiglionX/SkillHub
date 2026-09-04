@@ -14,6 +14,7 @@ import { Home as HomeIcon } from 'lucide-react';
 import NluSearchBox from '../components/NluSearchBox';
 import SkillCard, { type SkillCardProps } from '../components/SkillCard';
 import type { LlmChatOk } from '../lib/LlmGateway';
+import seedSkillsData from '../../resources/seed-skills.json';
 
 interface InstalledSkill {
   slug: string;
@@ -23,6 +24,39 @@ interface InstalledSkill {
 
 /// M4：推荐 Skill 与 SkillCard 共用同一形状，避免字段不一致
 type RecommendedSkill = SkillCardProps['skill'];
+
+/// v2.0.7+：seed-skills.json 本地兑底用。
+/// 与 Settings.tsx 中 SEED_SKILLS 处理逻辑一致（跳过顶层元字段）。
+interface SeedCatalogEntry {
+  recommended: { slug: string; blurb: string }[];
+}
+const SEED_SKILLS = seedSkillsData as { [tag: string]: SeedCatalogEntry | unknown };
+const SEED_META_KEYS = new Set(['schemaVersion', 'generatedAt', 'baseUrl', 'note']);
+
+/**
+ * v2.0.7+：从本地 seed-skills.json 取前 N 条作为兑底推荐。
+ * 仅在云端 API 返回 [] 且本机未扫到任何软件时调用。
+ * 每条仍是「查看 Web 端 →」跳转，不在助手内渲染 Skill 详情——不破坏 PRD §5.2 红线。
+ */
+function pickLocalFallbackSkills(limit: number): RecommendedSkill[] {
+  const out: RecommendedSkill[] = [];
+  for (const [tag, val] of Object.entries(SEED_SKILLS)) {
+    if (SEED_META_KEYS.has(tag)) continue;
+    const entry = val as SeedCatalogEntry;
+    if (!entry?.recommended) continue;
+    for (const r of entry.recommended) {
+      out.push({
+        slug: r.slug,
+        name: r.slug,
+        software: tag,
+        blurb: r.blurb,
+        category: 'A',
+      });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
 
 interface UsageSummary {
   by_skill: { key: string; calls: number; tokens_in: number; tokens_out: number; cost: number }[];
@@ -45,6 +79,9 @@ export default function Home({ hasKey, onNeedKey }: HomeProps = {}) {
   const [installedSlugs, setInstalledSlugs] = useState<Set<string>>(new Set());
   const [lastResult, setLastResult] = useState<{ ok: LlmChatOk; q: string } | null>(null);
   const [recentSkills, setRecentSkills] = useState<{ key: string; calls: number }[]>([]);
+  /// v2.0.7+：推荐列表来源标记。true=本地 seed-skills.json 兑底，false=云端 API。
+  /// 渲染时据此切换标题文案。
+  const [usingFallback, setUsingFallback] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -54,7 +91,7 @@ export default function Home({ hasKey, onNeedKey }: HomeProps = {}) {
         setDetectedSoftware(sw.map((s) => s.software_tag));
         const installed = await invoke<InstalledSkill[]>('get_installed_skills').catch(() => []);
         setInstalledSlugs(new Set(installed.map((s) => s.slug)));
-        // 推荐 Skill
+        // 推荐 Skill（云端优先；本地兑底仅在云端返回 [] 且本机未扫到任何软件时启用）
         const skills = await invoke<{ slug: string; name: string; software?: string; blurb?: string; category?: 'A' | 'B' | 'C' }[]>(
           'get_recommended_for_local_software',
           {
@@ -62,14 +99,23 @@ export default function Home({ hasKey, onNeedKey }: HomeProps = {}) {
             limit: 12,
           },
         ).catch(() => [] as { slug: string; name: string; software?: string; blurb?: string; category?: 'A' | 'B' | 'C' }[]);
-        const recommendedList: RecommendedSkill[] = skills.map((s) => ({
+        const recommendedFromApi: RecommendedSkill[] = skills.map((s) => ({
           slug: s.slug,
           name: s.name,
           software: s.software ?? '',
           blurb: s.blurb,
           category: s.category,
         }));
-        setRecommended(recommendedList);
+        // v2.0.7+：云端空 + 本机没扫到软件 → 用本地 seed-skills.json 兑底
+        // （scanner-rules.yml 里 21 个 software_tag 用户都没装的情况下）。
+        let finalRecommended = recommendedFromApi;
+        let fallback = false;
+        if (recommendedFromApi.length === 0) {
+          finalRecommended = pickLocalFallbackSkills(6);
+          fallback = true;
+        }
+        setRecommended(finalRecommended);
+        setUsingFallback(fallback);
         // 最近 3 条用量
         const sum = await invoke<UsageSummary>('get_local_usage_summary', { range: '7d' }).catch(() => null);
         if (sum) {
@@ -115,9 +161,18 @@ export default function Home({ hasKey, onNeedKey }: HomeProps = {}) {
 
         {recommended.length > 0 && (
           <section>
-            <div className="text-[13px] font-semibold text-primary mb-3">
-              推荐 Skill（基于本机已装软件）
+            <div className="text-[13px] font-semibold text-primary mb-1">
+              {usingFallback ? '热门 Skill 推荐' : '推荐 Skill（基于本机已装软件）'}
             </div>
+            {/* v2.0.7+：兑底时说明一句本地未装什么。避免用户误以为“扫描出错”。 */}
+            {usingFallback ? (
+              <div className="text-[11px] text-muted mb-3 leading-relaxed">
+                本机未检测到扫描规则中的常用软件，先看几个热门 Skill。
+                装好 Photoshop / VSCode / Blender 后这里会自动按你装的软件推荐。
+              </div>
+            ) : (
+              <div className="mb-3" />
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {recommended.slice(0, 6).map((s) => (
                 <SkillCard
