@@ -103,7 +103,7 @@ async fn handle_discover(State(state): State<Arc<LlmProxyState>>) -> impl IntoRe
     let provider = active.as_ref().map(|(p, _)| p.clone());
     let has_key = active.is_some();
     Json(serde_json::json!({
-        "name": "SkillHub Helper",
+        "name": "SkillHub",
         "version": env!("CARGO_PKG_VERSION"),
         "has_key": has_key,
         "active_provider": provider,

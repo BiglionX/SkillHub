@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "SkillHub Helper 主窗口默认能力：自定义 invoke + opener 打开外部链接（白名单：三个 Provider 文档域名 + skillhub.proclaw.cc 自身域，用于 onboarding / 推荐跳转）",
+  "description": "SkillHub 主窗口默认能力：自定义 invoke + opener 打开外部链接（白名单：三个 Provider 文档域名 + skillhub.proclaw.cc 自身域，用于 onboarding / 推荐跳转）",
   "windows": ["main"],
   "permissions": [
     "core:default",

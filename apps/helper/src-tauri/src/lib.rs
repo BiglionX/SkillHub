@@ -193,7 +193,7 @@ pub fn run() {
             // 注册系统托盘
             let _tray = tauri::tray::TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().cloned().unwrap())
-                .tooltip("SkillHub Helper")
+                .tooltip("SkillHub")
                 .on_tray_icon_event(|_tray, event| {
                     if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
                         // 双击托盘打开主窗口
@@ -258,7 +258,7 @@ fn get_helper_info(
 ) -> serde_json::Value {
     serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "name": "SkillHub Helper",
+        "name": "SkillHub",
         "helper_port": handle.port(),
         "key_store_fallback": state.key_store.is_fallback(),
         "key_store_fallback_reason": state.key_store.fallback_reason(),
@@ -644,7 +644,7 @@ async fn get_helper_full_info(
 
     Ok(serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "name": "SkillHub Helper",
+        "name": "SkillHub",
         "helper_port": port,
         "protocol_registered": protocol::is_registered(),
         "protocol_status": protocol_status_str,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
-  "productName": "SkillHub Helper",
+  "productName": "SkillHub",
   "version": "2.0.5",
   "identifier": "cc.proclaw.skillhub.helper",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SkillHub Helper",
+        "title": "SkillHub",
         "width": 880,
         "height": 640,
         "minWidth": 720,
@@ -32,7 +32,7 @@
       "id": "main-tray",
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true,
-      "tooltip": "SkillHub Helper"
+      "tooltip": "SkillHub"
     }
   },
   "bundle": {
