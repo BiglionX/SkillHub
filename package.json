@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "prebuild": "pnpm db:generate",
     "build": "turbo run build",
     "start": "pnpm --filter @skillhub/web start",
     "lint": "eslint .",

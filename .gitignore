@@ -55,6 +55,8 @@ deer-flow/
 # Generated artifacts
 test-results.json
 apps/web/test-results.json
+# Prisma schema hash stamp（scripts/check-prisma-stale.mjs 生成；本机指纹，不入库）
+apps/web/prisma/.schema-hash
 
 # Python bytecode cache (bump-version.py 等脚本运行时生成)
 **/__pycache__/
