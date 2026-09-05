@@ -64,11 +64,9 @@ jobs:
         run: pnpm lint
 
       - name: Run typecheck
-        # v2.0.7: 存量 CI 失败（master 自 2026-08 起 typecheck 在 ubuntu runner 上一直 fail，
-        # 本地 Windows 全绿，根因为 ubuntu runner 环境差异，详 .qoder/plans/存量CI修复方案_d4e5f6a7.md）
-        # 先 continue-on-error 避免阻断 CI，待后续排查后改回 fail-fast
+        # v2.0.7: 本地+CI 修复后已稳定，2026-09-05 验证 11/11 包绿
+        # （修复 search-sdk axios dep + .prisma/client stale）
         run: pnpm typecheck
-        continue-on-error: true
 
       - name: Run unit tests
         run: pnpm --filter @skillhub/web run test:coverage
@@ -89,9 +87,9 @@ jobs:
   # E2E 测试
   e2e-test:
     runs-on: ubuntu-latest
-    # v2.0.7: 存量 CI 失败（Build application / Cypress 在 ubuntu runner 上一直 fail，
-    # 本地 Windows ExitCode=0，根因为 ubuntu runner 环境差异，详存量CI修复方案 plan）
-    # job 级 continue-on-error：job fail 不阻断下游 build job + workflow success
+    # v2.0.7: build application 已修复，但 Cypress 在 ubuntu runner 上仍可能 fail
+    # （含浏览器启动 + 真实 Postgres service，本地无 DB 无法验证）
+    # 保留 job 级 continue-on-error：避免 Cypress 偶发 flake 阻塞 build job + workflow success
     continue-on-error: true
 
     services:
@@ -181,10 +179,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: [test, e2e-test]
-    # v2.0.7: 存量 CI 失败（Build web/CLI application 在 ubuntu runner 上一直 fail，
-    # 本地 Windows ExitCode=0，根因为 ubuntu runner 环境差异，详存量CI修复方案 plan）
-    # job 级 continue-on-error：job fail 不阻断 workflow success
-    continue-on-error: true
+    # v2.0.7: 本地已验证 build 全过（修复 search-sdk axios + .mjs exports），
+    # 2026-09-05 验证 8/8 包成功（含 tauri MSI/NSIS 打包）
 
     steps:
       - name: Checkout code

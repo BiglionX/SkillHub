@@ -309,6 +309,10 @@ importers:
   packages/api-client: {}
 
   packages/search-sdk:
+    dependencies:
+      axios:
+        specifier: ^1.7.7
+        version: 1.19.0
     devDependencies:
       typescript:
         specifier: ^5.0.0

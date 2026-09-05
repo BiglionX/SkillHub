@@ -49,9 +49,9 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-latest
-    # v2.0.7: 存量 CI 失败（Build workspace packages / Cypress 在 ubuntu runner 上一直 fail，
-    # 本地 Windows ExitCode=0，根因为 ubuntu runner 环境差异，详存量CI修复方案 plan）
-    # job 级 continue-on-error：job fail 不阻断 workflow success
+    # v2.0.7: build workspace packages 已修复（search-sdk axios + .mjs exports 修复后 turbo build --filter=@skillhub/web 过），
+    # 但 Cypress 仍依赖 dev server + Postgres service，本地无 DB 无法复现验证
+    # 保留 job 级 continue-on-error：避免 Cypress 偶发 flake 阻塞 workflow success
     continue-on-error: true
 
     steps:
@@ -104,9 +104,9 @@ jobs:
   playwright-tests:
     # v2.1 新增：补 Playwright E2E（之前 CI 只跑 cypress，遗漏了 Playwright）
     runs-on: ubuntu-latest
-    # v2.0.7: 存量 CI 失败（Build workspace packages / Playwright 在 ubuntu runner 上一直 fail，
-    # 本地 Windows ExitCode=0，根因为 ubuntu runner 环境差异，详存量CI修复方案 plan）
-    # job 级 continue-on-error：job fail 不阻断 workflow success
+    # v2.0.7: build workspace packages 已修复，但 Playwright 仍依赖 chromium + Postgres service，
+    # 本地无 DB + 浏览器无法复现验证
+    # 保留 job 级 continue-on-error：避免 Playwright 偶发 flake 阻塞 workflow success
     continue-on-error: true
 
     steps:
