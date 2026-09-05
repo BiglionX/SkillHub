@@ -10,6 +10,15 @@ use std::process::Command;
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
 
+use tauri::{AppHandle, Emitter};
+
+/// v2.0.7+：扫描进度事件名。emit payload 三种 kind：
+/// - { kind: "start", total }
+/// - { kind: "checking", tag, display_name }
+/// - { kind: "checked", tag, display_name, found, path?, scanned, total }
+/// - { kind: "done", total, found, elapsed_ms }
+const SCAN_PROGRESS_EVENT: &str = "scan-progress";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScannedSoftware {
     pub software_tag: String,
@@ -58,20 +67,72 @@ struct OsRules {
 }
 
 /// 扫描本机所有已知软件
-pub async fn scan_all() -> Vec<ScannedSoftware> {
+/// v2.0.7+：传 `Option<&AppHandle>`，扫到每个 rule 后 emit `scan-progress` 事件。
+/// 不传 AppHandle 时静默运行（供 install_skill / fetch_recommended_skills / scan_installed_software
+/// 这些不需要 UI 进度的后端调用复用）。
+pub async fn scan_all(app: Option<&AppHandle>) -> Vec<ScannedSoftware> {
+    let started = std::time::Instant::now();
     let rules_yaml = include_str!("../../resources/scanner-rules.yml");
     let rules: ScannerRules = serde_yaml::from_str(rules_yaml).unwrap_or_else(|e| {
         log::warn!("scanner-rules.yml 解析失败: {}", e);
         ScannerRules { software: Default::default() }
     });
 
+    let total = rules.software.len();
+    emit_progress(app, serde_json::json!({ "kind": "start", "total": total }));
+
     let mut results = Vec::new();
-    for (key, rule) in rules.software {
-        if let Some(sw) = scan_one(&key, &rule).await {
+    for (idx, (key, rule)) in rules.software.iter().enumerate() {
+        emit_progress(
+            app,
+            serde_json::json!({
+                "kind": "checking",
+                "tag": rule.software_tag,
+                "display_name": rule.display_name,
+            }),
+        );
+        let found = scan_one(key, rule).await;
+        let found_flag = found.is_some();
+        emit_progress(
+            app,
+            serde_json::json!({
+                "kind": "checked",
+                "tag": rule.software_tag,
+                "display_name": rule.display_name,
+                "found": found_flag,
+                "path": found.as_ref().map(|s| s.path.clone()),
+                "scanned": idx + 1,
+                "total": total,
+            }),
+        );
+        if let Some(sw) = found {
             results.push(sw);
         }
     }
+
+    emit_progress(
+        app,
+        serde_json::json!({
+            "kind": "done",
+            "total": total,
+            "found": results.len(),
+            "elapsed_ms": started.elapsed().as_millis() as u64,
+        }),
+    );
+
     results
+}
+
+/// v2.0.7+：emit scan-progress 事件并 warn 丢错。
+/// 理论上 Tauri emit 不会失败（除非 webview 已销毁），但丢失 `start`/`done` 会让
+/// 前端扫描 UI 进度条停在中途，没有日志无法排查。log::warn 不影响功能，
+/// 仅改善可观测性。
+fn emit_progress(app: Option<&AppHandle>, payload: serde_json::Value) {
+    if let Some(a) = app {
+        if let Err(e) = a.emit(SCAN_PROGRESS_EVENT, payload) {
+            log::warn!("emit scan-progress 失败: {}", e);
+        }
+    }
 }
 
 async fn scan_one(_key: &str, rule: &SoftwareRule) -> Option<ScannedSoftware> {
