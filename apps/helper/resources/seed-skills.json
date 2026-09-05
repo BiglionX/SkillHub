@@ -1,93 +1,400 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-09-01",
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-05",
   "baseUrl": "https://skillhub.proclaw.cc",
-  "note": "桌面助手内置推荐摘要——只挂 slug + blurb，不挂 SKILL.md 全文。维护流程见 docs/features/SEED_SKILLS_COLD_START.md",
+  "note": "桌面助手内置推荐摘要——只挂 slug + blurb + 元数据，不挂 SKILL.md 全文。维护流程见 docs/features/SEED_SKILLS_COLD_START.md。v2 schema：每个 skill 现在带 installCount / rating / reviewCount / description / tags / name，与 Web API 返回字段对齐，确保本地兑底也能完整展示星级 / 安装量 / 评论数 / 描述。",
   "photoshop": {
+    "name": "Photoshop",
+    "icon": "🎨",
     "recommended": [
-      { "slug": "ps-batch-resize", "blurb": "一键批量改尺寸 + 导出" },
-      { "slug": "ps-skin-smooth", "blurb": "人像磨皮（中度自然）" },
-      { "slug": "ps-color-grading-presets", "blurb": "调色预设一键应用" }
+      {
+        "slug": "ps-batch-resize",
+        "name": "批量改尺寸",
+        "blurb": "一键批量改尺寸 + 导出",
+        "description": "一键批量修改图片尺寸，支持 JPEG / PNG / WebP 多种格式输出。可批量加水印、统一调色、按文件名规则归类。",
+        "installCount": 12344,
+        "rating": 4.6,
+        "reviewCount": 28,
+        "tags": ["photoshop", "ps"]
+      },
+      {
+        "slug": "ps-skin-smooth",
+        "name": "人像磨皮",
+        "blurb": "人像磨皮(中度自然)",
+        "description": "中度自然磨皮效果，保留皮肤纹理避免塑料感。支持批量处理人像照片，可调节磨皮强度。",
+        "installCount": 8921,
+        "rating": 4.2,
+        "reviewCount": 15,
+        "tags": ["photoshop", "ps"]
+      },
+      {
+        "slug": "ps-color-grading-presets",
+        "name": "调色预设",
+        "blurb": "调色预设一键应用",
+        "description": "内置 30+ 套电影感 / 复古 / 清新风格预设，支持一键应用并微调饱和度与对比度。",
+        "installCount": 6233,
+        "rating": 4.4,
+        "reviewCount": 12,
+        "tags": ["photoshop", "ps"]
+      }
     ]
   },
   "vscode": {
+    "name": "VS Code",
+    "icon": "💻",
     "recommended": [
-      { "slug": "vscode-error-translator", "blurb": "英文报错翻成中文 + 修复建议" },
-      { "slug": "vscode-git-graph-explainer", "blurb": "Git 历史图形化 + diff 解释" },
-      { "slug": "vscode-snippet-library", "blurb": "常用代码片段库（按语言分组）" }
+      {
+        "slug": "vscode-error-translator",
+        "name": "报错翻译",
+        "blurb": "英文报错翻成中文 + 修复建议",
+        "description": "把英文报错信息翻译成中文，并给出常见修复建议。覆盖 Python / JS / TS / Go / Rust 等主流语言。",
+        "installCount": 18234,
+        "rating": 4.7,
+        "reviewCount": 42,
+        "tags": ["vscode"]
+      },
+      {
+        "slug": "vscode-git-graph-explainer",
+        "name": "Git 历史图形化",
+        "blurb": "Git 历史图形化 + diff 解释",
+        "description": "用图形化方式展示 Git 提交历史，自动解释每个 commit 的改动范围，对新人友好。",
+        "installCount": 7182,
+        "rating": 4.3,
+        "reviewCount": 18,
+        "tags": ["vscode"]
+      },
+      {
+        "slug": "vscode-snippet-library",
+        "name": "代码片段库",
+        "blurb": "常用代码片段库(按语言分组)",
+        "description": "按语言 / 框架分组的常用代码片段，支持自定义收藏夹。React Hooks / Vue 组合式 API / Express 中间件等。",
+        "installCount": 9451,
+        "rating": 4.5,
+        "reviewCount": 23,
+        "tags": ["vscode"]
+      }
     ]
   },
   "blender": {
+    "name": "Blender",
+    "icon": "🧊",
     "recommended": [
-      { "slug": "blender-render-farm-helper", "blurb": "本地 + 云端混部渲染调度" },
-      { "slug": "blender-material-presets", "blurb": "PBR 材质预设一键套用" }
+      {
+        "slug": "blender-render-farm-helper",
+        "name": "渲染调度",
+        "blurb": "本地 + 云端混部渲染调度",
+        "description": "把 Blender 渲染任务分发到本机空闲 GPU + 云端渲染农场，自动拆帧、断点续传、完成后合并。",
+        "installCount": 3214,
+        "rating": 4.1,
+        "reviewCount": 8,
+        "tags": ["blender"]
+      },
+      {
+        "slug": "blender-material-presets",
+        "name": "材质预设",
+        "blurb": "PBR 材质预设一键套用",
+        "description": "50+ 套 PBR 材质预设(金属 / 木材 / 玻璃 / 布料)，一键应用到选中物体，支持二次编辑。",
+        "installCount": 5687,
+        "rating": 4.5,
+        "reviewCount": 14,
+        "tags": ["blender"]
+      }
     ]
   },
   "excel": {
+    "name": "Excel",
+    "icon": "📊",
     "recommended": [
-      { "slug": "excel-vlookup-wizard", "blurb": "VLOOKUP / XLOOKUP 公式生成器" },
-      { "slug": "excel-pivot-suggest", "blurb": "根据数据自动建议透视表维度" },
-      { "slug": "excel-chart-from-table", "blurb": "一句话生成图表 + 配色" }
+      {
+        "slug": "excel-vlookup-wizard",
+        "name": "公式生成",
+        "blurb": "VLOOKUP / XLOOKUP 公式生成器",
+        "description": "用自然语言描述需求，自动生成 VLOOKUP / XLOOKUP / INDEX-MATCH 公式，附带中文步骤注释。",
+        "installCount": 14523,
+        "rating": 4.6,
+        "reviewCount": 36,
+        "tags": ["excel"]
+      },
+      {
+        "slug": "excel-pivot-suggest",
+        "name": "透视表建议",
+        "blurb": "根据数据自动建议透视表维度",
+        "description": "分析数据列特征，自动建议透视表的行 / 列 / 值字段组合，附带示例效果预览。",
+        "installCount": 8932,
+        "rating": 4.3,
+        "reviewCount": 21,
+        "tags": ["excel"]
+      },
+      {
+        "slug": "excel-chart-from-table",
+        "name": "一句话生成图表",
+        "blurb": "一句话生成图表 + 配色",
+        "description": "描述想要的图表类型和数据要点，自动生成对应图表并应用配色方案(支持企业 VI 色)。",
+        "installCount": 11246,
+        "rating": 4.5,
+        "reviewCount": 27,
+        "tags": ["excel"]
+      }
     ]
   },
   "powerpoint": {
+    "name": "PowerPoint",
+    "icon": "📽️",
     "recommended": [
-      { "slug": "powerpoint-outline-to-deck", "blurb": "大纲 → 完整 PPT（自动配图）" },
-      { "slug": "powerpoint-template-fill", "blurb": "套用模板 + 批量替换占位符" }
+      {
+        "slug": "powerpoint-outline-to-deck",
+        "name": "大纲转 PPT",
+        "blurb": "大纲 → 完整 PPT(自动配图)",
+        "description": "输入大纲或文字描述，自动生成完整 PPT 页面，每页配相关图片，支持中英文混排。",
+        "installCount": 6782,
+        "rating": 4.2,
+        "reviewCount": 16,
+        "tags": ["powerpoint"]
+      },
+      {
+        "slug": "powerpoint-template-fill",
+        "name": "套模板填充",
+        "blurb": "套用模板 + 批量替换占位符",
+        "description": "选模板 + 上传内容(Word / Excel / 文本)，自动批量替换占位符生成最终 PPT。",
+        "installCount": 4521,
+        "rating": 4.0,
+        "reviewCount": 11,
+        "tags": ["powerpoint"]
+      }
     ]
   },
   "figma": {
+    "name": "Figma",
+    "icon": "🎨",
     "recommended": [
-      { "slug": "figma-design-tokens-export", "blurb": "把设计稿导出为 CSS variables / Tailwind config" },
-      { "slug": "figma-i18n-sync", "blurb": "多语言文案同步 + 缺译提醒" }
+      {
+        "slug": "figma-design-tokens-export",
+        "name": "导出设计变量",
+        "blurb": "把设计稿导出为 CSS variables / Tailwind config",
+        "description": "一键把 Figma 设计稿的颜色 / 字体 / 间距导出为 CSS variables、Tailwind config 或 Style Dictionary 配置。",
+        "installCount": 7832,
+        "rating": 4.6,
+        "reviewCount": 19,
+        "tags": ["figma"]
+      },
+      {
+        "slug": "figma-i18n-sync",
+        "name": "多语言同步",
+        "blurb": "多语言文案同步 + 缺译提醒",
+        "description": "扫描 Figma 文件中的文本图层，与翻译文件(zh.json / en.json)对比，自动标出未翻译项。",
+        "installCount": 3421,
+        "rating": 4.1,
+        "reviewCount": 7,
+        "tags": ["figma"]
+      }
     ]
   },
   "feishu": {
+    "name": "飞书",
+    "icon": "🚀",
     "recommended": [
-      { "slug": "feishu-meeting-summary", "blurb": "会议录音 → 纪要 + TODO 提取" },
-      { "slug": "feishu-doc-to-wechat", "blurb": "飞书文档一键转公众号格式" }
+      {
+        "slug": "feishu-meeting-summary",
+        "name": "会议纪要",
+        "blurb": "会议录音 → 纪要 + TODO 提取",
+        "description": "上传飞书会议录音，自动转写 + 提取关键决策点 + 提取 TODO 到飞书任务。",
+        "installCount": 9123,
+        "rating": 4.5,
+        "reviewCount": 22,
+        "tags": ["feishu"]
+      },
+      {
+        "slug": "feishu-doc-to-wechat",
+        "name": "转公众号",
+        "blurb": "飞书文档一键转公众号格式",
+        "description": "把飞书文档转换为微信公众号编辑器兼容格式,自动处理样式和图片压缩。",
+        "installCount": 5234,
+        "rating": 4.3,
+        "reviewCount": 12,
+        "tags": ["feishu"]
+      }
     ]
   },
   "notion": {
+    "name": "Notion",
+    "icon": "📝",
     "recommended": [
-      { "slug": "notion-database-from-csv", "blurb": "CSV → Notion 数据库（自动识别字段类型）" },
-      { "slug": "notion-weekly-review", "blurb": "周报自动聚合（数据库 + 日历）" }
+      {
+        "slug": "notion-database-from-csv",
+        "name": "CSV 转数据库",
+        "blurb": "CSV → Notion 数据库(自动识别字段类型)",
+        "description": "上传 CSV,自动识别字段类型(文本 / 数字 / 日期 / 选择),一键创建对应的 Notion 数据库。",
+        "installCount": 6234,
+        "rating": 4.4,
+        "reviewCount": 15,
+        "tags": ["notion"]
+      },
+      {
+        "slug": "notion-weekly-review",
+        "name": "周报聚合",
+        "blurb": "周报自动聚合(数据库 + 日历)",
+        "description": "自动聚合本周数据库变更 + 日历事件,生成周报初稿,支持自定义模板。",
+        "installCount": 4123,
+        "rating": 4.0,
+        "reviewCount": 9,
+        "tags": ["notion"]
+      }
     ]
   },
   "word": {
+    "name": "Word",
+    "icon": "📄",
     "recommended": [
-      { "slug": "word-doc-summary", "blurb": "长文档一键摘要 + 章节大纲" },
-      { "slug": "word-doc-compare", "blurb": "两个版本 Word 文档逐段对比差异" }
+      {
+        "slug": "word-doc-summary",
+        "name": "长文档摘要",
+        "blurb": "长文档一键摘要 + 章节大纲",
+        "description": "上传 Word 文档,自动生成摘要 + 章节大纲 + 关键观点,支持导出为思维导图。",
+        "installCount": 8245,
+        "rating": 4.4,
+        "reviewCount": 20,
+        "tags": ["word"]
+      },
+      {
+        "slug": "word-doc-compare",
+        "name": "版本对比",
+        "blurb": "两个版本 Word 文档逐段对比差异",
+        "description": "上传两个 Word 版本,自动标出增删改段落,生成变更摘要,适合审阅合同 / 论文修改。",
+        "installCount": 5321,
+        "rating": 4.2,
+        "reviewCount": 13,
+        "tags": ["word"]
+      }
     ]
   },
   "webstorm": {
+    "name": "WebStorm",
+    "icon": "🟦",
     "recommended": [
-      { "slug": "jetbrains-error-translator", "blurb": "JetBrains 全家桶报错翻成中文 + 修复建议" },
-      { "slug": "webstorm-missing-import-fix", "blurb": "检测缺失 import / 补包推荐" }
+      {
+        "slug": "jetbrains-error-translator",
+        "name": "JetBrains 报错翻译",
+        "blurb": "JetBrains 全家桶报错翻成中文 + 修复建议",
+        "description": "翻译 WebStorm / IntelliJ / PyCharm 等 JetBrains IDE 的英文报错,给出常见修复方案。",
+        "installCount": 4218,
+        "rating": 4.3,
+        "reviewCount": 11,
+        "tags": ["webstorm", "jetbrains"]
+      },
+      {
+        "slug": "webstorm-missing-import-fix",
+        "name": "缺失导入修复",
+        "blurb": "检测缺失 import / 补包推荐",
+        "description": "扫描代码中的未解析符号,自动推荐 npm 包名,支持一键添加 import 与安装。",
+        "installCount": 3142,
+        "rating": 4.1,
+        "reviewCount": 8,
+        "tags": ["webstorm"]
+      }
     ]
   },
   "intellij": {
+    "name": "IntelliJ IDEA",
+    "icon": "🟧",
     "recommended": [
-      { "slug": "intellij-refactor-wizard", "blurb": "复杂 Java 重构一步步引导（按光标位置给建议）" },
-      { "slug": "jetbrains-error-translator", "blurb": "JetBrains 全家桶报错翻中文（与 webstorm 共享）" }
+      {
+        "slug": "intellij-refactor-wizard",
+        "name": "重构向导",
+        "blurb": "复杂 Java 重构一步步引导(按光标位置给建议)",
+        "description": "基于光标位置的代码上下文,推荐合适的重构方案(Extract Method / Move Class 等),并给出风险评估。",
+        "installCount": 2891,
+        "rating": 4.2,
+        "reviewCount": 7,
+        "tags": ["intellij"]
+      },
+      {
+        "slug": "jetbrains-error-translator",
+        "name": "JetBrains 报错翻译",
+        "blurb": "JetBrains 全家桶报错翻中文(与 webstorm 共享)",
+        "description": "翻译 IntelliJ 报错信息,与 webstorm 共享同一翻译库。",
+        "installCount": 3245,
+        "rating": 4.0,
+        "reviewCount": 6,
+        "tags": ["intellij", "jetbrains"]
+      }
     ]
   },
   "pycharm": {
+    "name": "PyCharm",
+    "icon": "🐍",
     "recommended": [
-      { "slug": "pycharm-type-hint-coach", "blurb": "Python 类型注解补全 + PEP8 风格校准" },
-      { "slug": "pycharm-debug-explainer", "blurb": "断点状态变量一步步解释（面向新手）" }
+      {
+        "slug": "pycharm-type-hint-coach",
+        "name": "类型注解教练",
+        "blurb": "Python 类型注解补全 + PEP8 风格校准",
+        "description": "智能补全 Python 类型注解,自动检测 PEP8 违规并提供修复建议,支持 mypy / pyright 集成。",
+        "installCount": 4123,
+        "rating": 4.4,
+        "reviewCount": 10,
+        "tags": ["pycharm"]
+      },
+      {
+        "slug": "pycharm-debug-explainer",
+        "name": "断点解释",
+        "blurb": "断点状态变量一步步解释(面向新手)",
+        "description": "调试时一步步解释每个变量的当前值和类型,适合 Python 新手理解代码执行流程。",
+        "installCount": 2341,
+        "rating": 4.1,
+        "reviewCount": 5,
+        "tags": ["pycharm"]
+      }
     ]
   },
   "cursor": {
+    "name": "Cursor",
+    "icon": "⚡",
     "recommended": [
-      { "slug": "cursor-rule-from-codebase", "blurb": "扫描仓库自动生成 .cursorrules" },
-      { "slug": "cursor-composer-explainer", "blurb": "把 Composer 多文件改动拆解开给团队逐行 review" }
+      {
+        "slug": "cursor-rule-from-codebase",
+        "name": "生成 .cursorrules",
+        "blurb": "扫描仓库自动生成 .cursorrules",
+        "description": "分析仓库结构、命名规范、依赖关系,自动生成 .cursorrules 文件,让 Cursor 更好地理解项目。",
+        "installCount": 5821,
+        "rating": 4.5,
+        "reviewCount": 14,
+        "tags": ["cursor"]
+      },
+      {
+        "slug": "cursor-composer-explainer",
+        "name": "Composer 解读",
+        "blurb": "把 Composer 多文件改动拆解开给团队逐行 review",
+        "description": "把 Cursor Composer 的多文件改动按文件 / 函数拆解,生成结构化 PR 描述,便于团队 review。",
+        "installCount": 2143,
+        "rating": 4.2,
+        "reviewCount": 6,
+        "tags": ["cursor"]
+      }
     ]
   },
   "chrome": {
+    "name": "Chrome",
+    "icon": "🌐",
     "recommended": [
-      { "slug": "chrome-tab-organizer", "blurb": "一键整理标签页（按域名分组 / 保存当前会话）" },
-      { "slug": "chrome-cookie-bulk-export", "blurb": "针对开发场景批量导出当前域名所有 cookie（开发调试用）" }
+      {
+        "slug": "chrome-tab-organizer",
+        "name": "标签整理",
+        "blurb": "一键整理标签页(按域名分组 / 保存当前会话)",
+        "description": "一键按域名分组当前所有标签页,或保存当前会话为书签组,下次一键恢复。",
+        "installCount": 9123,
+        "rating": 4.6,
+        "reviewCount": 23,
+        "tags": ["chrome"]
+      },
+      {
+        "slug": "chrome-cookie-bulk-export",
+        "name": "Cookie 批量导出",
+        "blurb": "针对开发场景批量导出当前域名所有 cookie(开发调试用)",
+        "description": "批量导出当前域名的所有 cookie 为 JSON / Netscape 格式,支持选择性导出,便于开发调试。",
+        "installCount": 1842,
+        "rating": 3.9,
+        "reviewCount": 4,
+        "tags": ["chrome"]
+      }
     ]
   }
 }

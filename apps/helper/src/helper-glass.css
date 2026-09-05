@@ -88,12 +88,17 @@
 /* ============== Glass Card（plan §1 核心规范） ============== */
 .glass-card {
   background: var(--g-bg-card);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* v2.0.7+：saturate 从 180% 降到 140%。
+     原值会让背后 cyan/violet radial-gradient 色斑穿透到卡片顶部，恰好盖住卡片标题
+     （用户反馈「卡片标题看不到了」）。140% 仍保留玻璃质感但减弱色斑干扰. */
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--g-border);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  padding: 20px;
+  /* v2.0.7+：顶部 padding 从 20px 增到 26px，让标题自然与卡片顶边拉开距离，
+     避开顶部 backdrop-filter 透出的色斑区。 */
+  padding: 26px 20px 20px;
   transition: all 200ms ease;
   position: relative;
   overflow: hidden;
@@ -608,12 +613,184 @@
 }
 
 /* ============== App Layout（左侧窄导航 + 右侧主区） ============== */
+/* v2.0.7+：补齐 desktop 端缺的 Tailwind utility 类，避免业务代码里写了不生效。
+   范围限定在本项目实际使用到的类。不引入完整 Tailwind，只补缺口。 */
+.items-end { align-items: flex-end; }
+.items-baseline { align-items: baseline; }
+.items-start { align-items: flex-start; }
+.justify-end { justify-content: flex-end; }
+.leading-none { line-height: 1; }
+.leading-tight { line-height: 1.25; }
+.font-mono { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; }
+.resize-y { resize: vertical; }
+
+/* v2.0.7+：首页标题「SkillHub」旁的版本号 class。
+   font-size 13px + line-height 24px（与 h1 text-2xl 一致） + align-self flex-end，
+   让 v2.0.5 底部与 SkillHub 底部严格对齐，不会被 flex stretch 拉开。 */
+.home-title-version {
+  font-size: 13px;
+  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+  color: var(--g-text-muted);
+  line-height: 1;
+  align-self: flex-end;
+  padding-bottom: 3px;
+}
+
+/* v2.0.7+：首页顶部「SkillHub vX.Y.Z」标题栏。
+   - position: sticky; top: 32px：钉在 main 顶部 drag bar（32px 高）下方，
+     拖动窗口时仍能拖；main 内部滚动时始终在顶部不变（不随鼠标滚动）。
+   - backdrop-filter + var(--g-bg-base) 透明背景：滚动时遮挡下方内容，避免文字穿超。
+   - z-index: 50：低于 WindowControls (200)、drag bar、高于普通内容。
+   - 上 0 / 下 12px / 左右 0 padding：贴 drag bar 下沿。 */
+.home-title-bar {
+  position: sticky;
+  top: 32px;
+  z-index: 50;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin: 0 -28px 12px;
+  padding: 0 28px 10px;
+  background: rgba(5, 8, 22, 0.85);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom: 1px solid var(--g-border);
+}
+/* v2.0.7+：左侧只显示大图标（64px），hover 时弹出 tooltip 文字。
+   这样在 880px 宽窗口里给主内容区让出更多空间。
+   v2.0.7+：height 锁 100vh（之前 min-height 让 body 出现滚动条），
+   禁止横向/纵向溢出（溢出 hidden），内部滚动交给 .glass-main 自己处理。 */
 .glass-app-layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: 100vh;
+  grid-template-columns: 64px 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
   background: var(--g-bg-base);
   color: var(--g-text-primary);
+}
+
+/* v2.0.7+：右侧主区域。主区负责纵向滚动，父 .glass-app-layout 不滚。
+   顶部预留 36px 留给 WindowControls 按钮区（main 右上角绝对定位）。
+   overflow-x: hidden 防止某个子元素意外撑出横向滚动条。
+   v2.0.7+：滚动条默认隐藏（thumb 透明），
+   hover 容器 或 正在滚动（.is-scrolling）时 才显示 8px 半透明黑色。
+   这样外观更接近 macOS overlay scrollbar，也不遮挡内容。 */
+.glass-main {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  -ms-overflow-style: none;
+}
+
+/* v2.0.7+：主区滚动条样式（WebView2 Chromium 内核）
+   - 默认 thumb 透明：不滚动 + 不 hover 时看不到
+   - 8px 宽，加 inset 效果（right: 4px 偏移出背景）让滚动条看起来“嵌在画面里”
+   - hover 容器 / is-scrolling class / thumb hover 都会触发显示
+   - 颜色：半透明黑色，在深色背景上可见，不艳 */
+.glass-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.glass-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass-main::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background-color 200ms ease;
+  /* 让 thumb 在主区右边内侧，不是贴在边 */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.glass-main:hover::-webkit-scrollbar-thumb,
+.glass-main.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+.glass-main::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.75);
+}
+
+.glass-main::-webkit-scrollbar-thumb:active {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+/* v2.0.7+：右上角窗口控制按钮（minimize / toggle-maximize / close）。
+   业务上可选：用户不希望依赖 OS 窗口装饰栏，在应用内画出一致的玻璃按钮。
+   - z-index: 200，高于 banner/toast
+   - top: 8px / right: 12px 靠近边角
+   - 默认透明背景，hover 玻璃色
+   - 关闭按钮 hover 变红色
+   - WebkitAppRegion: no-drag 在 App.tsx 里 inline style 设置，
+     避免被父 .glass-drag-bar 的 drag 区域吞掉点击。 */
+.glass-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  z-index: 200;
+  padding: 4px 8px 0;
+}
+
+.glass-window-controls button {
+  width: 32px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--g-text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  padding: 0;
+}
+
+.glass-window-controls button:hover {
+  background: var(--g-bg-card);
+  border-color: var(--g-border);
+  color: var(--g-text-primary);
+}
+
+.glass-window-controls button.danger:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--g-red-400);
+}
+
+/* main 内容区顶部留出空间，避免被右上角按钮 + tab banner 叠住。
+   v2.0.7+：OS title bar 被禁用后，这里只留 4px 间隔（drag bar 32px 高度供拖动 + sticky title bar 贴顶）。
+   .home-title-bar 自己负责 sticky 锚定、背景遮挡下层内容。 */
+.glass-main > .glass-main-content {
+  padding: 4px 0 32px;
+}
+
+/* v2.0.7+：顶部 drag bar（Tauri 装饰栏禁用后，窗口默认不可拖动）。
+   - 位置：main 顶部、高度 32px（与 OS title bar 高度一致）
+   - -webkit-app-region: drag：鼠标拖动该区域可拖窗口
+   - 透明背景，hover 什么都不显示（保持视觉上“顶部无条”）
+   - WindowControls 用 no-drag 覆盖，能正常点击按钮。 */
+.glass-drag-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  -webkit-app-region: drag;
+  app-region: drag;
+  z-index: 1;
+  background: transparent;
+  pointer-events: auto;
 }
 
 @media (max-width: 720px) {
@@ -629,29 +806,41 @@
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-right: 1px solid var(--g-border);
-  padding: 20px 14px;
+  padding: 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
+  /* v2.0.7+：不要给 overflow-y: auto——内容高度（logo + 4 个 Tab + footer）约 350px，
+     远小于 viewport 880px，但 Chromium 在 overflow-y: auto 下仍会保留滚动条空间，
+     造成看起来「菜单栏有划拉条」的错觉。让 overflow 默认 visible 同时允许 tooltip ::after 飘出。 */
+  overflow: visible;
 }
 
 .glass-sidebar-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px 20px;
+  justify-content: center;
+  padding: 4px 0 16px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--g-border);
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.glass-sidebar-header:hover {
+  background: var(--g-bg-card);
+  border-radius: 10px;
 }
 
 .glass-sidebar-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: linear-gradient(135deg, var(--g-cyan-500), var(--g-violet-500));
   display: flex;
   align-items: center;
@@ -661,13 +850,12 @@
   font-size: 14px;
   flex-shrink: 0;
   box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+  cursor: pointer;
 }
 
+/* v2.0.7+：窄模式下 brand 文字隐藏，hover 整个 header 才显示。 */
 .glass-sidebar-brand {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  display: none;
 }
 
 .glass-sidebar-brand-name {
@@ -685,12 +873,13 @@
   font-family: 'Menlo', 'Consolas', monospace;
 }
 
-/* 侧边导航项 */
+/* v2.0.7+：侧边导航项（窄模式：只显示图标，hover 弹出 tooltip） */
 .glass-sidebar-item {
+  position: relative;       /* tooltip 定位锚点 */
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  justify-content: center;  /* 窄模式下图标居中 */
+  padding: 10px;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 500;
@@ -722,61 +911,159 @@
   border-color: rgba(6, 182, 212, 0.5);
 }
 
+/* v2.0.7+：hover 弹出文字 tooltip（从 sidebar 右侧飘出） */
+.glass-sidebar-item:hover::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 10px;
+  background: var(--g-bg-elevated);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--g-text-primary);
+  border: 1px solid var(--g-border-strong);
+  border-radius: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), var(--g-glow-cyan-sm);
+  pointer-events: none;
+}
+
+/* tooltip 左侧小三角 */
+.glass-sidebar-item:hover::before {
+  content: '';
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: var(--g-border-strong);
+  z-index: 100;
+  pointer-events: none;
+}
+
 .glass-sidebar-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 
-/* sidebar 底部状态区 */
+/* sidebar 底部状态区（窄模式：垂直堆叠，圆点 + tooltip） */
 .glass-sidebar-footer {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid var(--g-border);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: center;
 }
 
-/* PR-2.1.3：sidebar 底部的 hasKey 状态条（圆点 + 文字）。 */
+/* v2.0.7+：状态条去掉默认矩形框（背景 + 边框 + padding），只保留 hover 时的微到玻璃底色。
+   仅下右下角小圆点 + Brain 图标，不包框。 */
 .glass-sidebar-status {
+  position: relative;       /* tooltip 定位锚点 */
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  justify-content: center;
+  padding: 6px;
   border-radius: 8px;
-  background: var(--g-bg-card);
-  border: 1px solid var(--g-border);
+  background: transparent;
+  border: none;
   font-size: 12px;
   color: var(--g-text-muted);
   min-width: 0;
+  width: 100%;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.glass-sidebar-status:hover {
+  background: var(--g-bg-card);
 }
 
 .glass-sidebar-status-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;            /* 窄模式下隐藏文字 */
 }
 
-/* F20：未配 LLM Key 时的高亮修饰类（amber 边框 + 背景暖调）。
-   仅作为 .glass-sidebar-status 的修饰，不能独立使用。 */
+/* v2.0.7+：状态条 hover 弹出 tooltip，显示完整状态文本。
+   max-width 200px + word-break 防超出视口（原本多字不加限制会出现横向滚动条）。 */
+.glass-sidebar-status:hover::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 10px;
+  background: var(--g-bg-elevated);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--g-text-primary);
+  border: 1px solid var(--g-border-strong);
+  border-radius: 6px;
+  white-space: normal;
+  max-width: 200px;
+  word-break: break-word;
+  line-height: 1.4;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), var(--g-glow-cyan-sm);
+  pointer-events: none;
+}
+
+/* v2.0.7+：状态条里的主体 LLM 图标。 */
+.glass-sidebar-status-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* v2.0.7+：右下角状态点。未配置为灰色，已配置为绿色发点。 */
+.glass-sidebar-status-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--g-bg-base);
+  pointer-events: none;
+}
+.glass-sidebar-status-dot.success {
+  background: var(--g-green-400);
+  box-shadow: 0 0 6px var(--g-green-400);
+}
+.glass-sidebar-status-dot.warn {
+  background: var(--g-text-faint);
+  box-shadow: 0 0 4px rgba(148, 163, 184, 0.5);
+}
+
+.glass-sidebar-status:hover::before {
+  content: '';
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: var(--g-border-strong);
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* F20：未配 LLM Key 状态已改为靠图标本身变灰色提示（className "text-muted"）。
+   原 amber 边框高亮已去掉（v2.0.7+ 要求状态图标不包矩形框）。 */
 .glass-sidebar-status.glass-sidebar-status-warn {
-  border-color: rgba(251, 191, 36, 0.55);
-  background:
-    linear-gradient(135deg, rgba(251, 191, 36, 0.10), rgba(251, 191, 36, 0.04)),
-    var(--g-bg-card);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15) inset;
-}
-
-.glass-sidebar-status.glass-sidebar-status-warn:hover {
-  border-color: rgba(251, 191, 36, 0.75);
-  background:
-    linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(251, 191, 36, 0.06)),
-    var(--g-bg-card);
+  /* 留作修饰类占位。未来如果加新的状态变化可以加 animation 而不需要边框。 */
 }
 
 /* 右侧主区 */

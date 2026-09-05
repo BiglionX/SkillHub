@@ -321,9 +321,10 @@ async fn delete_provider_key(
 
 /// 扫描本机已装软件（M2：手动触发，由前端“重新扫描”按钮调用）
 /// 返回 `scanner::ScannedSoftware` 列表的 JSON 数组
+/// v2.0.7+：接收 AppHandle，传给 scanner::scan_all，让它 emit `scan-progress` 事件供前端展示动态扫描过程。
 #[tauri::command]
-async fn trigger_software_scan() -> Result<Vec<serde_json::Value>, String> {
-    let results = scanner::scan_all().await;
+async fn trigger_software_scan(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let results = scanner::scan_all(Some(&app)).await;
     Ok(results
         .into_iter()
         .map(|s| serde_json::to_value(&s).unwrap_or(serde_json::json!({})))
@@ -425,8 +426,8 @@ async fn install_skill(
         },
     );
 
-    // 2. 扫描找到软件路径
-    let installed = scanner::scan_all().await;
+    // 2. 扫描找到软件路径（install_skill 不需要 UI 进度，传 None）
+    let installed = scanner::scan_all(None).await;
     let sw = installed
         .iter()
         .find(|s| s.software_tag == playbook_to_software_tag(&playbook_name))
@@ -638,8 +639,8 @@ async fn get_helper_full_info(
         protocol::RegistrationStatus::Unsupported => "unsupported",
     };
 
-    // 扫描本机软件
-    let installed = scanner::scan_all().await;
+    // 扫描本机软件（get_helper_info 不需要 UI 进度，传 None）
+    let installed = scanner::scan_all(None).await;
     let installed_software: Vec<String> = installed.into_iter().map(|s| s.software_tag).collect();
 
     Ok(serde_json::json!({
@@ -768,7 +769,8 @@ async fn test_provider_key(
 /// 扫描本机已装软件（M2）
 #[tauri::command]
 async fn scan_installed_software() -> Result<Vec<serde_json::Value>, String> {
-    let results = scanner::scan_all().await;
+    // v2.0.7+：此命令被 Home Tab 启动期调用、用户不期望看详细扫描进度。传 None 静默扫描。
+    let results = scanner::scan_all(None).await;
     Ok(results
         .into_iter()
         .map(|s| serde_json::to_value(&s).unwrap_or(serde_json::json!({})))
@@ -880,8 +882,8 @@ async fn heartbeat_loop(helper_port: u16, key_store: Arc<KeyStore>) {
         .unwrap_or_default();
 
     loop {
-        // 1. 扫描本机软件
-        let installed = scanner::scan_all().await;
+        // 1. 扫描本机软件（heartbeat 后台任务，不需要 UI 进度）
+        let installed = scanner::scan_all(None).await;
         let software_tags: Vec<String> = installed.into_iter().map(|s| s.software_tag).collect();
         let protocol_registered = protocol::is_registered();
 
