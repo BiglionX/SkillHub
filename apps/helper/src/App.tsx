@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+﻿import { useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
@@ -10,20 +10,23 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { StatusBadge, ToastCard } from './components/StatusBadge';
 import {
   AlertTriangle,
-  Circle,
+  Brain,
   Compass,
-  Home as HomeIcon,
-  Info,
-  Link2,
+  Minus,
   PackageOpen,
   BarChart3,
   Settings as SettingsIcon,
   Sparkles,
+  Square,
+  X,
 } from 'lucide-react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
-/// M4：5-Tab 体系（home / explore / my / usage / settings）
+/// M4 + v2.0.7+：侧边栏只显示图标，home 不再列在 Tab 中，改由顶部 logo 点击进入。
+/// 剩余 4 个 Tab：explore / my / usage / settings。
 type Tab = 'home' | 'explore' | 'my' | 'usage' | 'settings';
-const TAB_ORDER: Tab[] = ['home', 'explore', 'my', 'usage', 'settings'];
+/// v2.0.7+：侧边栏渲染顺序不含 home（home 由 logo 点击）
+const SIDEBAR_TABS: Tab[] = ['explore', 'my', 'usage', 'settings'];
 const TAB_LABELS: Record<Tab, string> = {
   home: '首页',
   explore: '探索',
@@ -210,12 +213,88 @@ function resolveCtaUrl(action: string): string {
   return action;
 }
 
+/**
+ * v2.0.7+：右上角三个窗口控制按钮（最小化 / 最大化 / 关闭）。
+ * 走 Tauri 2 的 @tauri-apps/api/window 提供的 getCurrentWindow() 调起窗口动作。
+ * web 端（非 Tauri）调 .minimize()/.toggleMaximize()/.close() 会抛错，所以包了 .catch 静默。
+ */
+function WindowControls() {
+  const onMinimize = () => {
+    getCurrentWindow()
+      .minimize()
+      .catch(() => {
+        /* 非 Tauri 环境 / 调用失败：静默 */
+      });
+  };
+  const onToggleMaximize = () => {
+    getCurrentWindow()
+      .toggleMaximize()
+      .catch(() => {});
+  };
+  const onClose = () => {
+    getCurrentWindow()
+      .close()
+      .catch(() => {});
+  };
+  return (
+    // v2.0.7+：Tauri 禁用了 OS 装饰栏后，父 .glass-drag-bar 是 -webkit-app-region: drag。
+    // 这里要 no-drag 覆盖，否则点击会变拖窗。
+    <div className="glass-window-controls" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <button
+        type="button"
+        onClick={onMinimize}
+        aria-label="最小化"
+        title="最小化"
+      >
+        <Minus size={14} aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onToggleMaximize}
+        aria-label="最大化"
+        title="最大化/还原"
+      >
+        <Square size={11} aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="danger"
+        aria-label="关闭"
+        title="关闭"
+      >
+        <X size={14} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [info, setInfo] = useState<HelperInfo | null>(null);
   const [hasKey, setHasKey] = useState(false);
   // A 轮 #P1-22：Web 端 session 绑定状态
   const [session, setSession] = useState<SessionInfo | null>(null);
+  // v2.0.7+：主区 ref + 滚动中状态。滚动停止 800ms 后 is-scrolling class 移除。
+  // 配合 helper-glass.css .glass-main.is-scrolling::-webkit-scrollbar-thumb
+  // 实现“鼠标上下滚动时才出现”的半透明黑色滚动条。
+  const mainRef = useRef<HTMLElement | null>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    let timer: number | undefined;
+    const onScroll = () => {
+      setIsScrolling(true);
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIsScrolling(false), 800);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
 
   // A 轮 #H1：让 TabButton 的键盘导航回调用，把焦点交给指定 id 的 tab button。
   const focusTabById = useCallback((tabId: string) => {
@@ -284,17 +363,17 @@ export default function App() {
     }
   }, [hasKey]);
 
-  // M4：键盘快捷键 Cmd/Ctrl + 1..5 切换 Tab
+  // M4 + v2.0.7+：键盘快捷键 Cmd/Ctrl + 1..4 切换侧边栏 Tab（home 不在计数中）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
       const n = parseInt(e.key, 10);
       if (Number.isNaN(n)) return;
       const idx = n - 1;
-      if (idx >= 0 && idx < TAB_ORDER.length) {
+      if (idx >= 0 && idx < SIDEBAR_TABS.length) {
         e.preventDefault();
-        setTab(TAB_ORDER[idx]);
-        focusTabById(TAB_ORDER[idx]);
+        setTab(SIDEBAR_TABS[idx]);
+        focusTabById(SIDEBAR_TABS[idx]);
       } else if (e.key.toLowerCase() === 'r') {
         // Cmd/Ctrl + R：刷新当前 Tab 数据（占位，未来 Home/Explore 接 refetch）
         e.preventDefault();
@@ -306,48 +385,51 @@ export default function App() {
 
   return (
     <div className="glass-app-layout">
-      {/* PR-2.1：左侧窄导航列 + 右侧主区。TabButton 保留以维持键盘导航 / ARIA 语义。 */}
+      {/* v2.0.7+：侧边栏头部 logo 改为可点击 button，点此进入首页。
+          同时整个 sidebar 隐藏品牌文字，仅 hover logo 时弹出 tooltip。 */}
       <aside className="glass-sidebar" aria-label="主导航">
-        <div className="glass-sidebar-header">
+        <button
+          type="button"
+          className="glass-sidebar-header"
+          aria-label="返回首页 SkillHub"
+          title="首页 · SkillHub"
+          onClick={() => setTab('home')}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+        >
           <div className="glass-sidebar-logo" aria-hidden>
             {/* v2.0.7+：侧边栏 logo 走 lucide（之前用 🐙 emoji，深色玻璃上对比度差） */}
-            <Sparkles size={18} strokeWidth={2.5} />
+            <Sparkles size={20} strokeWidth={2.5} />
           </div>
-          <div className="glass-sidebar-brand">
-            <span className="glass-sidebar-brand-name">SkillHub</span>
-            <span className="glass-sidebar-brand-version">v2.0.7</span>
-          </div>
-        </div>
+        </button>
         <nav role="tablist" aria-label="主导航">
-          {/* M4：5-Tab 渲染，按 TAB_ORDER 顺序 */}
-          {TAB_ORDER.map((t) => (
+          {/* v2.0.7+：侧边栏只渲染 4 个 Tab（home 移到 logo）。文字通过 hover tooltip 显示。 */}
+          {SIDEBAR_TABS.map((t) => (
             <TabButton
               key={t}
               active={tab === t}
               onClick={() => setTab(t)}
               tabId={t}
-              tabOrder={TAB_ORDER}
+              tabOrder={SIDEBAR_TABS}
               onFocusTab={focusTabById}
             >
-              <span className="flex items-center gap-2">
-                {t === 'home' && <HomeIcon size={15} aria-hidden />}
-                {t === 'explore' && <Compass size={15} aria-hidden />}
-                {t === 'my' && <PackageOpen size={15} aria-hidden />}
-                {t === 'usage' && <BarChart3 size={15} aria-hidden />}
-                {t === 'settings' && <SettingsIcon size={15} aria-hidden />}
-                <span>{TAB_LABELS[t]}</span>
+              <span className="glass-sidebar-icon" aria-hidden>
+                {t === 'explore' && <Compass size={20} strokeWidth={2} />}
+                {t === 'my' && <PackageOpen size={20} strokeWidth={2} />}
+                {t === 'usage' && <BarChart3 size={20} strokeWidth={2} />}
+                {t === 'settings' && <SettingsIcon size={20} strokeWidth={2} />}
               </span>
             </TabButton>
           ))}
         </nav>
         <div className="glass-sidebar-footer">
-          {/* F20：Key 状态圆点 + 文字。改为可点击：未配 Key 时跳 Settings。
-              未配 Key 状态下加 amber 边框高亮（glass-sidebar-status-warn 修饰类）。 */}
+          {/* F20：LLM Key 状态。v2.0.7+ 改为：Brain 主图标 + 右下角绿点（已配）/灰点（未配）。
+              tooltip 文本精简为「点此跳设置」/「已就绪」一句，不再含端口号以免溢出。 */}
           <div
             className={`glass-sidebar-status ${!hasKey ? 'glass-sidebar-status-warn' : ''}`}
             role="button"
             tabIndex={0}
-            aria-label={hasKey ? 'LLM Key 已配置' : '未配置 LLM Key · 点此跳设置'}
+            aria-label={hasKey ? 'LLM Key 已配置 · 点此跳设置' : '未配置 LLM Key · 点此跳设置'}
+            data-label={hasKey ? 'LLM 已就绪 · 点此跳设置' : '未配置 LLM Key · 点此跳设置'}
             onClick={() => setTab('settings')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -357,136 +439,97 @@ export default function App() {
             }}
             style={{ cursor: 'pointer' }}
           >
-            <span aria-hidden
-              className={hasKey ? 'status-dot-success' : 'status-dot-neutral'}
-              style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', flexShrink: 0 }}
-            />
-            <span className="glass-sidebar-status-text">
-              {hasKey ? `已就绪 · 端口 ${info?.helper_port ?? '…'}` : '未配置 LLM Key'}
+            <span className="glass-sidebar-status-icon" aria-hidden>
+              <Brain size={18} strokeWidth={2} className={hasKey ? 'text-cyan-300' : 'text-muted'} />
+              <span
+                className={`glass-sidebar-status-dot ${hasKey ? 'success' : 'warn'}`}
+                aria-hidden
+              />
             </span>
           </div>
-          {/* A 轮 #G1：session 绑定徽章玻璃化为 cyan 胶囊。 */}
-          <div
-            className={session?.has_token ? 'glass-pill glass-pill-cyan' : 'glass-pill glass-pill-neutral'}
-            title={
-              session?.has_token
-                ? `绑定于 ${session.user_email ?? session.user_id ?? '已绑定 Web 账号'}`
-                : '心跳上报为匿名状态。绑定后可启用反向推送 / 个人化推荐'
-            }
-          >
-            <span aria-hidden className="flex items-center gap-1.5">
-                          {session?.has_token ? <Link2 size={13} /> : <Circle size={13} />}
-                        </span>
-            <span>{session?.has_token ? '已绑定 Web 账号' : '未绑定 Web'}</span>
           </div>
-        </div>
       </aside>
 
-      <main>
-        {/* A 轮 #B6：协议未注册时放在主区域顶部流式 banner，不再 fixed 覆盖 sidebar。 */}
-        {info &&
-          info.protocol_registered === false &&
-          info.helper_port !== undefined && (
-            <div
-              role="alert"
-              className="glass-banner-warning mb-4 flex flex-wrap items-center justify-center gap-3 px-4 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <AlertTriangle size={14} aria-hidden />
-                <span>
-                  <strong>skillhub:// 协议未注册</strong>
-                  {' '}— Web 端可能无法唤起助手。
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const r = await invoke<{ ok: boolean; status?: string; message?: string }>(
-                      'ensure_protocol_registered',
-                    );
-                    if (r.ok) {
-                      setInfo((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              protocol_registered: r.status !== 'not_registered' && r.status !== 'unsupported',
-                            }
-                          : prev,
-                      );
-                    }
-                  } catch (e) {
-                    console.warn('ensure_protocol_registered failed', e);
-                  }
-                }}
-                className="glow-btn glow-btn-warning px-3 py-1 text-xs"
+      {/* v2.0.7+：右侧主区域。className="glass-main" 使其负责纵向滚动（父 .glass-app-layout height: 100vh + overflow: hidden 避免 body 出现滚动条）。
+                  右上角渲染 WindowControls（minimize / toggle-maximize / close），样式走 glass-window-controls。 */}
+      <main
+        ref={mainRef}
+        className={`glass-main ${isScrolling ? 'is-scrolling' : ''}`}
+      >
+        {/* v2.0.7+：Tauri 2 禁用了 OS 装饰栏（tauri.conf.json decorations: false）后，
+            窗口不能被拖动。画一个顶部 drag bar（-webkit-app-region: drag）解决问题。
+            WindowControls 内部用 -webkit-app-region: no-drag 避免按钮被 drag 吞掉。 */}
+        <div className="glass-drag-bar" aria-hidden />
+        {/* v2.0.7+：右上角三个窗口控制按钮。仅在 Tauri 环境下生效（web 下 getCurrentWindow 会报错，已 catch）。 */}
+        <WindowControls />
+        {/* v2.0.7+：main 内容包一层 .glass-main-content，为右上角按钮区预留顶部 padding。 */}
+        <div className="glass-main-content">
+          {/* v2.0.7+：删除了协议未注册 banner。普通用户不需要懂 Windows 协议注册机制，
+           “Web 端一键安装” 是面向技术用户的进阶功能，每次启动都弹警告只会让用户觉得 “是不是装错了”。
+           后端 ensure_protocol_registered 命令保留（自动注册时不打扰用户），注册失败仅记录到日志。 */}
+          {/* A 轮 #G1：fallback 警示，从顶栏搬到主区域顶部 banner。 */}
+          {info &&
+            info.key_store_fallback && (
+              <div
+                role="alert"
+                aria-label="KeyStore 数据未持久化"
+                className="glass-hint-danger mb-4"
               >
-                重新注册
-              </button>
-            </div>
-          )}
-        {/* A 轮 #G1：fallback 警示，从顶栏搬到主区域顶部 banner。 */}
-        {info &&
-          info.key_store_fallback && (
-            <div
-              role="alert"
-              aria-label="KeyStore 数据未持久化"
-              className="glass-hint-danger mb-4"
-            >
-              <strong className="flex items-center gap-2">
-                <AlertTriangle size={14} aria-hidden />
-                <span>数据未持久化</span>
-              </strong>
-              {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
-            </div>
-          )}
-        {/* M4：5 Tab panel */}
-        <div
-          role="tabpanel"
-          id="home-panel"
-          aria-labelledby="home-tab"
-          tabIndex={0}
-          hidden={tab !== 'home'}
-        >
-          {tab === 'home' && <Home hasKey={hasKey} onNeedKey={handleNeedKey} />}
-        </div>
-        <div
-          role="tabpanel"
-          id="explore-panel"
-          aria-labelledby="explore-tab"
-          tabIndex={0}
-          hidden={tab !== 'explore'}
-        >
-          {tab === 'explore' && <Explore hasKey={hasKey} onNeedKey={handleNeedKey} />}
-        </div>
-        <div
-          role="tabpanel"
-          id="my-panel"
-          aria-labelledby="my-tab"
-          tabIndex={0}
-          hidden={tab !== 'my'}
-        >
-          {tab === 'my' && <MySkills />}
-        </div>
-        <div
-          role="tabpanel"
-          id="usage-panel"
-          aria-labelledby="usage-tab"
-          tabIndex={0}
-          hidden={tab !== 'usage'}
-        >
-          {tab === 'usage' && <Usage />}
-        </div>
-        <div
-          role="tabpanel"
-          id="settings-panel"
-          aria-labelledby="settings-tab"
-          tabIndex={0}
-          hidden={tab !== 'settings'}
-        >
-          {tab === 'settings' && (
-            <AppJobsBridge onNavigateToSettings={() => setTab('settings')} />
-          )}
+                <strong className="flex items-center gap-2">
+                  <AlertTriangle size={14} aria-hidden />
+                  <span>数据未持久化</span>
+                </strong>
+                {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
+              </div>
+            )}
+          {/* M4：5 Tab panel */}
+          <div
+            role="tabpanel"
+            id="home-panel"
+            aria-labelledby="home-tab"
+            tabIndex={0}
+            hidden={tab !== 'home'}
+          >
+            {tab === 'home' && <Home version={info?.version ?? '2.0.7'} hasKey={hasKey} onNeedKey={handleNeedKey} />}
+          </div>
+          <div
+            role="tabpanel"
+            id="explore-panel"
+            aria-labelledby="explore-tab"
+            tabIndex={0}
+            hidden={tab !== 'explore'}
+          >
+            {tab === 'explore' && <Explore hasKey={hasKey} onNeedKey={handleNeedKey} />}
+          </div>
+          <div
+            role="tabpanel"
+            id="my-panel"
+            aria-labelledby="my-tab"
+            tabIndex={0}
+            hidden={tab !== 'my'}
+          >
+            {tab === 'my' && <MySkills />}
+          </div>
+          <div
+            role="tabpanel"
+            id="usage-panel"
+            aria-labelledby="usage-tab"
+            tabIndex={0}
+            hidden={tab !== 'usage'}
+          >
+            {tab === 'usage' && <Usage />}
+          </div>
+          <div
+            role="tabpanel"
+            id="settings-panel"
+            aria-labelledby="settings-tab"
+            tabIndex={0}
+            hidden={tab !== 'settings'}
+          >
+            {tab === 'settings' && (
+              <AppJobsBridge onNavigateToSettings={() => setTab('settings')} />
+            )}
+          </div>
         </div>
       </main>
     </div>
@@ -1120,11 +1163,16 @@ function TabButton({
     if (target < 0 || target >= len) return;
     onFocusTab(tabOrder[target]);
   };
+  /// v2.0.7+：用 TAB_LABELS 提供 hover tooltip 文字（侧边栏窄模式只显示图标）。
+  const tooltip = TAB_LABELS[tabId as Tab] ?? tabId;
   return (
     <button
       role="tab"
       aria-selected={active}
       aria-controls={`${tabId}-panel`}
+      aria-label={tooltip}
+      title={tooltip}
+      data-label={tooltip}
       id={`${tabId}-tab`}
       tabIndex={active ? 0 : -1}
       onClick={onClick}
@@ -1144,92 +1192,9 @@ function TabButton({
           focusByIndex(len - 1);
         }
       }}
-      style={{
-        minWidth: 112,
-        padding: '14px 16px',
-        background: 'transparent',
-        color: active ? '#2563eb' : '#6b7280',
-        fontSize: 14,
-        fontWeight: active ? 600 : 500,
-        border: 'none',
-        borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-        marginBottom: -1,
-        cursor: 'pointer',
-        transition: 'color 120ms ease, border-color 120ms ease',
-      }}
-      className="focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+      className={`glass-sidebar-item ${active ? 'glass-sidebar-item-active' : ''} focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400`}
     >
       {children}
     </button>
-  );
-}
-
-function About() {
-  // v2.0.7+：About 玻璃化（与 Settings 主控台同一风格，cyan→magenta 渐变 + backdrop-blur）。
-  // 原浅色 inline style 与左窄导航列视觉不一致，已统一替换。
-  return (
-    <div className="glass-canvas px-6 py-10 glass-scroll">
-      <div className="mx-auto max-w-2xl">
-        <div className="glass-card-elevated relative">
-          <div className="glass-top-bar-wide" />
-          <div className="mb-4 text-5xl">{"\uD83D\uDC9A"}</div>
-          <h1 className="mb-2 text-2xl font-bold gradient-text-h">关于 SkillHub</h1>
-          <p className="text-secondary text-sm leading-7 mb-4">
-            SkillHub 桌面助手是 <strong>Skill 的执行载体</strong>，不负责浏览/推荐——那些都在
-            <a
-              href="https://skillhub.proclaw.cc"
-              target="_blank"
-              rel="noreferrer"
-              className="text-link ml-1"
-            >
-              Web 端
-            </a>
-            完成。
-          </p>
-
-          <h2 className="text-primary mt-5 mb-2 text-base font-semibold">桌面端职责</h2>
-          <ul className="text-secondary space-y-2 text-sm leading-7 list-none pl-0">
-            <li className="glass-card-soft flex items-start gap-3 mb-0">
-              <span className="glass-step-num">1</span>
-              <span>
-                转发 Web 端 LLM 调用到你本机的 API Key（<strong>不经过云端</strong>）
-              </span>
-            </li>
-            <li className="glass-card-soft flex items-start gap-3 mb-0">
-              <span className="glass-step-num">2</span>
-              <span>扫描本机已装软件（M2 · F9）</span>
-            </li>
-            <li className="glass-card-soft flex items-start gap-3 mb-0">
-              <span className="glass-step-num">3</span>
-              <span>上报软件清单给云端用于反向推送（M2 · F14）</span>
-            </li>
-            <li className="glass-card-soft flex items-start gap-3 mb-0">
-              <span className="glass-step-num">4</span>
-              <span>执行 Web 端走 <code className="font-mono text-cyan-300">skillhub://</code> 协议唤起的安装剧本（M2 · F4+F10）</span>
-            </li>
-          </ul>
-
-          <div className="glass-hint-info mt-5 text-xs">
-            <strong>数据安全</strong>：你的 API Key 仅 AES-256 加密存储在本机{' '}
-            <code className="font-mono break-all">%APPDATA%\skillhub-helper\.data\llm-keys.json</code>
-            ，永远不会上传到 SkillHub 服务器。
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-muted">Web 端访问</span>
-            <a
-              href="https://skillhub.proclaw.cc"
-              target="_blank"
-              rel="noreferrer"
-              className="text-link break-all"
-            >
-              https://skillhub.proclaw.cc
-            </a>
-            <span className="text-faint">·</span>
-            <span className="text-muted">即可自动连上本助手</span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

@@ -1,6 +1,7 @@
 const js = require("@eslint/js");
 const tsPlugin = require("@typescript-eslint/eslint-plugin");
 const tsParser = require("@typescript-eslint/parser");
+const reactHooksPlugin = require("eslint-plugin-react-hooks");
 const globals = require("globals");
 
 module.exports = [
@@ -18,6 +19,7 @@ module.exports = [
     },
     plugins: {
       "@typescript-eslint": tsPlugin,
+      "react-hooks": reactHooksPlugin,
     },
     rules: {
       "no-unused-vars": "off", // Handled by @typescript-eslint/no-unused-vars
@@ -25,8 +27,8 @@ module.exports = [
       "no-undef": "off",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": [
-        "warn", 
-        { 
+        "warn",
+        {
           "argsIgnorePattern": "^_",
           "varsIgnorePattern": "^_",
           "caughtErrorsIgnorePattern": "^_",
@@ -35,6 +37,9 @@ module.exports = [
         }
       ],
       "@typescript-eslint/no-non-null-assertion": "warn",
+      // react-hooks: 主规则 error（保 hooks 调用合法）；exhaustive-deps 仅 warn（存量 stagger 不阻断）
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
   {

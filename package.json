@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "prebuild": "pnpm db:generate",
     "build": "turbo run build",
     "start": "pnpm --filter @skillhub/web start",
     "lint": "eslint .",
@@ -32,6 +33,7 @@
     "@typescript-eslint/eslint-plugin": "^8.21.0",
     "@typescript-eslint/parser": "^8.21.0",
     "eslint": "^9.18.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",

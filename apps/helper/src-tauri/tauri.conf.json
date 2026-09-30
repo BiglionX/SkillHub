@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "SkillHub",
-  "version": "2.0.5",
+  "version": "2.0.07",
   "identifier": "cc.proclaw.skillhub.helper",
   "build": {
     "beforeDevCommand": "pnpm vite",
@@ -20,7 +20,7 @@
         "minHeight": 520,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true,
+        "decorations": false,
         "transparent": false,
         "alwaysOnTop": false
       }
@@ -48,6 +48,14 @@
     "shortDescription": "SkillHub 本地安装助手",
     "longDescription": "SkillHub 桌面助手：注册 skillhub:// 协议、扫描本机软件、执行安装剧本、转发 LLM 调用。",
     "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": false
+      },
       "wix": {
         "language": "zh-CN"
       }

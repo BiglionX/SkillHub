@@ -3,15 +3,8 @@
   "version": "1.0.0",
   "description": "SkillHub搜索引擎SDK - 为您的应用集成强大的AI技能搜索功能",
   "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "files": [
     "dist"
   ],
@@ -19,7 +12,10 @@
     "build": "tsc && tsc -p tsconfig.esm.json",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

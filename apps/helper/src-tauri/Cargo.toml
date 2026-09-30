@@ -2,7 +2,7 @@
 name = "skillhub-helper"
 # A 轮合规修补：AGENTS.md "Z 两位补零" 与 Cargo semver 不允许前导零冲突，
 # 实际打包时只存 0..99 不含前导 0。Cargo + npm + tauri.conf 三处同步修改。
-version = "2.0.5"
+version = "2.0.07"
 description = "SkillHub 桌面助手（Tauri + Rust）"
 authors = ["SkillHub"]
 edition = "2021"

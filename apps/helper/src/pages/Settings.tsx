@@ -22,10 +22,11 @@
  * 安装进度通过 Tauri event `install-progress` / `install-complete`
  * 在 App.tsx 顶层弹窗展示（覆盖 installSuccess / installFailure）。
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Download, Trash2 } from 'lucide-react';
+import { Check, Download, Loader2, Trash2, X } from 'lucide-react';
 import { Wrench } from 'lucide-react';
 import seedSkillsData from '../../resources/seed-skills.json';
 
@@ -239,6 +240,15 @@ export default function Settings({
   const [scanned, setScanned] = useState<ScannedSoftware[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanAt, setScanAt] = useState<Date | null>(null);
+  /// v2.0.7+：动态扫描进度。Rust 端 emit `scan-progress` 事件，前端逐条实时更新：
+  /// - 'pending'：正在检测中（spinner）
+  /// - 'found'  ：检测到（✓ 绿色）
+  /// - 'missing'：未检测到（○ 灰色）
+  const [scanLog, setScanLog] = useState<
+    Array<{ tag: string; displayName: string; status: 'pending' | 'found' | 'missing'; path?: string }>
+  >([]);
+  const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0, found: 0 });
+  const [scanElapsedMs, setScanElapsedMs] = useState<number | null>(null);
 
   // 启动时拉数据
   useEffect(() => {
@@ -316,8 +326,13 @@ export default function Settings({
   }, [activeProvider]);
 
   // 扫描本机软件
+  // v2.0.7+：配合 Rust 端 emit `scan-progress` 事件，前端实时显示逐条检测进度
+  // （spinner → ✓ / ○）。不依赖 Rust 端 emit 时，退化为“按钮 disabled + 文字扫描中…”。
+  const scanStartedAtRef = useRef<number | null>(null);
   const handleScan = useCallback(async () => {
     setScanning(true);
+    setScanElapsedMs(null);
+    scanStartedAtRef.current = Date.now();
     try {
       const list = await invoke<ScannedSoftware[]>('trigger_software_scan');
       setScanned(list);
@@ -327,6 +342,69 @@ export default function Settings({
     } finally {
       setScanning(false);
     }
+  }, []);
+
+  // v2.0.7+：listen Rust 端 emit 的 `scan-progress` 事件，逐条更新 scanLog。
+  // useEffect 卸载时调 unlisten 避免内存泄漏（多层 Tab 切换时重要）。
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    const setup = async () => {
+      unlisten = await listen<{
+        kind: 'start' | 'checking' | 'checked' | 'done';
+        total?: number;
+        tag?: string;
+        display_name?: string;
+        found?: boolean;
+        path?: string;
+        scanned?: number;
+        found_count?: number;
+        elapsed_ms?: number;
+      }>('scan-progress', (event) => {
+        const p = event.payload;
+        if (p.kind === 'start') {
+          setScanLog([]);
+          setScanProgress({ scanned: 0, total: p.total ?? 0, found: 0 });
+        } else if (p.kind === 'checking' && p.tag) {
+          const tag = p.tag;
+          setScanLog((prev) => [
+            ...prev,
+            { tag, displayName: p.display_name ?? tag, status: 'pending' },
+          ]);
+        } else if (p.kind === 'checked' && p.tag) {
+          // v2.0.7+：把 tag 提到外层 scope，让 setScanLog 闭包也能拿到 string 类型（TS 闭包内 narrow 不延续）
+          const tag = p.tag;
+          setScanLog((prev) => {
+            const idx = prev.findIndex((it) => it.tag === tag);
+            if (idx < 0) return prev;
+            const next = prev.slice();
+            next[idx] = {
+              tag,
+              displayName: p.display_name ?? next[idx].displayName,
+              status: p.found ? 'found' : 'missing',
+              path: p.path,
+            };
+            return next;
+          });
+          setScanProgress((s) => ({
+            scanned: p.scanned ?? s.scanned,
+            total: p.total ?? s.total,
+            found: s.found + (p.found ? 1 : 0),
+          }));
+        } else if (p.kind === 'done') {
+          // Rust 端 elapsed_ms 是可倍字段；兑底用前端计时
+          const elapsed = typeof p.elapsed_ms === 'number' && p.elapsed_ms > 0
+            ? p.elapsed_ms
+            : scanStartedAtRef.current
+              ? Date.now() - scanStartedAtRef.current
+              : 0;
+          setScanElapsedMs(elapsed);
+        }
+      });
+    };
+    void setup();
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 
   const currentProvider = PROVIDERS.find((p) => p.id === activeProvider) ?? PROVIDERS[0];
@@ -895,10 +973,99 @@ export default function Settings({
               onClick={handleScan}
               disabled={scanning}
               className="glow-btn-ghost px-3 py-1 text-xs"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
+              {scanning && <Loader2 size={12} className="animate-spin" aria-hidden />}
               {scanning ? '扫描中…' : '重新扫描'}
             </button>
           </div>
+
+          {/* v2.0.7+：动态扫描进度。Rust 端 emit `scan-progress` 事件，前端实时逐条显示。
+              扫描中显示进度条 + 日志；扫描完成（scanning=false && scanLog.length>0）显示总结。
+              Rust emit 失败 / listener 拿不到事件时退化为只显示按钮文字。 */}
+          {scanning && scanLog.length > 0 && (
+            <div className="mb-3 glass-card-soft p-3">
+              <div className="flex items-center justify-between mb-2 text-[11px] text-muted">
+                <span>
+                  正在扫描 {scanProgress.scanned}/{scanProgress.total}
+                  {scanProgress.found > 0 && ` · 已发现 ${scanProgress.found} 个`}
+                </span>
+                <Loader2 size={12} className="animate-spin" aria-hidden />
+              </div>
+              {/* 进度条 */}
+              <div
+                style={{
+                  height: 4,
+                  background: 'var(--g-bg-elevated)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  marginBottom: 8,
+                }}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={scanProgress.total || 1}
+                aria-valuenow={scanProgress.scanned}
+                aria-label="本机软件扫描进度"
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${scanProgress.total > 0 ? (scanProgress.scanned / scanProgress.total) * 100 : 0}%`,
+                    background: 'linear-gradient(90deg, var(--g-cyan-500), var(--g-violet-500))',
+                    transition: 'width 150ms ease',
+                  }}
+                />
+              </div>
+              {/* 逐条扫描日志 */}
+              <ul className="flex flex-col gap-1 max-h-44 overflow-y-auto" aria-live="polite">
+                {scanLog.map((it) => (
+                  <li
+                    key={it.tag}
+                    className="flex items-center gap-2 text-[12px]"
+                    style={{ color: 'var(--g-text-secondary)' }}
+                  >
+                    {it.status === 'pending' && (
+                      <Loader2 size={11} className="animate-spin" aria-hidden style={{ color: 'var(--g-cyan-400)' }} />
+                    )}
+                    {it.status === 'found' && (
+                      <Check size={11} aria-hidden style={{ color: 'var(--g-green-400)' }} />
+                    )}
+                    {it.status === 'missing' && (
+                      <X size={11} aria-hidden style={{ color: 'var(--g-text-faint)' }} />
+                    )}
+                    <span style={{ minWidth: 88 }}>{it.displayName}</span>
+                    {it.status === 'found' && it.path && (
+                      <code
+                        className="font-mono text-[10px] truncate"
+                        style={{ color: 'var(--g-text-faint)', maxWidth: 360 }}
+                        title={it.path}
+                      >
+                        {it.path}
+                      </code>
+                    )}
+                    {it.status === 'missing' && (
+                      <span style={{ color: 'var(--g-text-faint)' }}>未检测到</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* v2.0.7+：扫描完成总结。scanning=false && scanLog.length>0 → 上次扫描的总结。 */}
+          {!scanning && scanLog.length > 0 && (
+            <div
+              className="mb-3 text-[11px]"
+              style={{ color: 'var(--g-text-muted)' }}
+              aria-live="polite"
+            >
+              扫描完成 · 用时{' '}
+              <strong style={{ color: 'var(--g-text-primary)' }}>
+                {((scanElapsedMs ?? 0) / 1000).toFixed(2)}s
+              </strong>{' '}
+              · 共检查 {scanProgress.total} 项 · 发现 {scanProgress.found} 个已装软件
+            </div>
+          )}
 
           {scanAt && (
             // A 轮 #G2：上次扫描时间也走相对时间格式
