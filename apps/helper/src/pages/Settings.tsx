@@ -26,7 +26,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Check, Download, Loader2, Trash2, X } from 'lucide-react';
+import { Check, Download, ExternalLink, Loader2, Trash2, X } from 'lucide-react';
 import { Wrench } from 'lucide-react';
 import seedSkillsData from '../../resources/seed-skills.json';
 
@@ -38,6 +38,14 @@ interface HelperInfo {
   /// A 轮修复 #A1：key_store 数据目录是否 fallback 到临时目录（true=数据不会持久化）
   key_store_fallback?: boolean;
   key_store_fallback_reason?: string | null;
+}
+
+/// Web 账号绑定快照（invoke('get_session_info')）
+interface SessionInfo {
+  has_token: boolean;
+  user_id?: string | null;
+  user_email?: string | null;
+  bound_at?: number | null;
 }
 
 type Provider = 'deepseek' | 'openai' | 'glm' | 'custom';
@@ -175,6 +183,8 @@ export default function Settings({
   const [stage, setStage] = useState<Stage>('console'); // useEffect 内覆盖
   // A 轮 #A1：启动 KeyStore 错误信息
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Web 账号绑定状态（游客每天 50 次调用上限）
+  const [session, setSession] = useState<SessionInfo | null>(null);
 
   // ==== LLM Key ====
   const [keyExpanded, setKeyExpanded] = useState(false);
@@ -256,8 +266,8 @@ export default function Settings({
       try {
         const i = await invoke<HelperInfo>('get_helper_info');
         setInfo(i);
-      } catch {
-        /* ignore */
+      } catch (e) {
+        console.warn('[Settings] get_helper_info 失败', e);
       }
       // A 轮 #PR-4：拉 base_url 映射 — 主要给 custom provider 在启动时回填
       try {
@@ -265,8 +275,15 @@ export default function Settings({
         setBaseUrls(urls ?? {});
         const custom = urls?.['custom'] ?? '';
         if (custom) setCustomBaseUrl(custom);
-      } catch {
-        /* ignore */
+      } catch (e) {
+        console.warn('[Settings] get_all_provider_base_urls 失败', e);
+      }
+      // Web 账号绑定状态（失败不阻断主控台，但要 log 出来）
+      try {
+        const s = await invoke<SessionInfo>('get_session_info');
+        setSession(s);
+      } catch (e) {
+        console.warn('[Settings] get_session_info 失败', e);
       }
       try {
         const status = await invoke<KeyStatus>('get_provider_keys_status');
@@ -302,8 +319,8 @@ export default function Settings({
       const status = await invoke<KeyStatus>('get_provider_keys_status');
       setActiveProvider(status.active as Provider);
       setProviderHasKey(status.providers);
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.warn('[Settings] refreshStatus 失败', e);
     }
   }, []);
 
@@ -550,6 +567,15 @@ export default function Settings({
     }
   };
 
+  /// Web 账号绑定入口走 openUrl（域名已在 ACL 白名单），失败要 log 而不是静默吞。
+  const handleOpenWebBinding = async () => {
+    try {
+      await openUrl('https://skillhub.proclaw.cc/settings');
+    } catch (e) {
+      console.warn('[Settings] 打开 Web 绑定页失败', e);
+    }
+  };
+
   // 验收 UX-P0-C：卸载 Skill 后展示 manual_steps。
   // - 成功：调 `uninstall_skill` 拿 manual_steps → 弹 modal → 提示用户在目标软件内完成剩余卸载
   // - 失败：invok 抛错不走「骗用户已卸」→ 也弹 modal，告知失败原因 + 后端返回的 manual_steps 仍有指导价值
@@ -578,6 +604,25 @@ export default function Settings({
       });
     }
   };
+
+  // H5 修复：暴露 `__skillhubTriggerUninstall` 到 window（挪到这里是因为上面要 ref handleUninstall）。
+  // 协议 `skillhub://uninstall/<slug>` 触发的卸载走这里，跳同 Settings 内的 manual_steps modal。
+  // 这样协议卸载与 UI 内点卸载按钮走同一 UX 路径。
+  const handleUninstallRef = useRef(handleUninstall);
+  handleUninstallRef.current = handleUninstall;
+  useEffect(() => {
+    const installedMap = new Map(installedSkills.map((s) => [s.slug, s]));
+    (window as unknown as {
+      __skillhubTriggerUninstall?: (slug: string) => void;
+    }).__skillhubTriggerUninstall = (slug: string) => {
+      const skill = installedMap.get(slug);
+      if (!skill) {
+        console.warn('[H5] 协议卸载触发但本机未安装该 Skill:', slug);
+        return;
+      }
+      handleUninstallRef.current(skill);
+    };
+  }, [installedSkills]);
 
   // v2.0.6：基于内置 seed-skills.json 构建 software_tag → 推荐列表索引。
   // 仅索引「形如 { recommended: [...] }」的业务条目，跳过顶层 schemaVersion 等元字段。
@@ -1253,6 +1298,29 @@ export default function Settings({
           <UsagePrivacyControls />
         </section>
 
+        {/* ========== Section 6: Web 账号绑定（v2.0.8+） ========== */}
+        {/* 游客每天 50 次 LLM 调用上限；绑定 Web 账号后解除并可在 Web 端查看跨设备用量。 */}
+        <section className="glass-card">
+          <div className="glass-top-bar" />
+          <h2 className="text-primary mb-3 text-base font-semibold">Web 账号绑定</h2>
+          <p className="text-secondary text-[13px] leading-relaxed mb-3">
+            {session?.has_token
+              ? `已绑定：${session.user_email ?? session.user_id ?? 'Web 账号'}`
+              : '当前为游客身份，每天最多 50 次 LLM 调用。绑定 Web 账号后解除限制，并可在 Web 端查看跨设备用量看板。'}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleOpenWebBinding()}
+              className="glow-btn-ghost text-[12px]"
+              aria-label="去 Web 端绑定账号"
+            >
+              <ExternalLink size={12} aria-hidden />
+              去 Web 端绑定
+            </button>
+          </div>
+        </section>
+
         {/* 验收 UX-P0-C：卸载 modal。展示后端返回的 manual_steps + 区分 error / success。
             - 成功（isError=false）：标题「请完成 X 的手动卸载」，说明桌面助手只负责发卸载指令，
               真正卸载得用户在目标软件里点一下。点击「已完成手动卸载」才调 onUninstallSkill 从 jobs 中移除。
@@ -1337,7 +1405,7 @@ export default function Settings({
  * 提供三个操作：
  * 1. 导出 CSV（export_usage_csv invoke）
  * 2. 手动清理（prune_local_usage invoke，默认 90 天）
- * 3. 90 天滚动开关（仅 UI 状态，M4 默认开）
+ * 3. 90 天滚动开关（打开时真实调用 prune_local_usage 立即清理，M4 默认开）
  */
 function UsagePrivacyControls() {
   const [exporting, setExporting] = useState(false);
@@ -1345,19 +1413,40 @@ function UsagePrivacyControls() {
   const [pruning, setPruning] = useState(false);
   const [pruneMsg, setPruneMsg] = useState<string | null>(null);
   const [rolling90, setRolling90] = useState(true);
+  const [rollingPruneMsg, setRollingPruneMsg] = useState<string | null>(null);
 
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
     setExportMsg(null);
     try {
-      const path = `~/Downloads/skillhub-usage-${Date.now()}.csv`;
+      // 后端返回下载目录下的绝对路径（含文件名），失败直接抛出由 catch 处理
+      const path = await invoke<string>('pick_export_path');
       const n = await invoke<number>('export_usage_csv', { path });
       setExportMsg(`已导出 ${n} 条记录到 ${path}`);
     } catch (e) {
       setExportMsg(`导出失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setExporting(false);
+    }
+  };
+
+  /// 用户勾选开关时真实执行 90 天清理，并把清理条数显示在 UI。
+  const handleRollingToggle = async (checked: boolean) => {
+    setRolling90(checked);
+    if (!checked) {
+      setRollingPruneMsg('已关闭自动清理');
+      return;
+    }
+    setPruning(true);
+    setRollingPruneMsg(null);
+    try {
+      const n = await invoke<number>('prune_local_usage', { days: 90 });
+      setRollingPruneMsg(`自动清理已开启，本次清理了 ${n} 条 90 天前的记录`);
+    } catch (e) {
+      setRollingPruneMsg(`清理失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPruning(false);
     }
   };
 
@@ -1401,7 +1490,8 @@ function UsagePrivacyControls() {
           <input
             type="checkbox"
             checked={rolling90}
-            onChange={(e) => setRolling90(e.target.checked)}
+            disabled={pruning}
+            onChange={(e) => void handleRollingToggle(e.target.checked)}
             aria-label="90 天滚动清理"
           />
           启动时自动清理 90 天前
@@ -1412,6 +1502,9 @@ function UsagePrivacyControls() {
       )}
       {pruneMsg && (
         <div className="text-[11px] text-muted">{pruneMsg}</div>
+      )}
+      {rollingPruneMsg && (
+        <div className="text-[11px] text-muted">{rollingPruneMsg}</div>
       )}
       <p className="text-[11px] text-muted leading-relaxed">
         助手上不会同步任何记录到云端，除非您主动点击「同步到云端」。

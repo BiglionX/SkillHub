@@ -1,13 +1,20 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, Suspense, lazy } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import Home from './pages/Home';
-import Explore from './pages/Explore';
-import MySkills from './pages/MySkills';
-import Usage from './pages/Usage';
-import Settings from './pages/Settings';
-import { setHelperPort, setAnonymousId } from './lib/LlmGateway';
+import { setHelperPort, setProxyToken, setUserId, setAnonymousId } from './lib/LlmGateway';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { StatusBadge, ToastCard } from './components/StatusBadge';
+import { TabSkeleton } from './components/TabSkeleton';
+
+// M6 §R12（PRD §15.1）：5 个 Tab page 全部 React.lazy 拆分，首屏只加载
+// 共享依赖（App.tsx + sidebar + StatusBadge + ToastCard）。每个 Tab 切到时
+// 触发对应 chunk 按需下载；Suspense fallback 走 TabSkeleton 与真实 UI 形状一致。
+// AppJobsBridgeImpl 与 Settings 同模块，会一起进入 Settings chunk，不需要单独 lazy。
+const Home = lazy(() => import('./pages/Home'));
+const Explore = lazy(() => import('./pages/Explore'));
+const MySkills = lazy(() => import('./pages/MySkills'));
+const Usage = lazy(() => import('./pages/Usage'));
+const Settings = lazy(() => import('./pages/Settings'));
 import {
   AlertTriangle,
   Brain,
@@ -18,6 +25,7 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Square,
+  User,
   X,
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -82,6 +90,15 @@ interface InstalledSkill {
   version?: string;
   installedAt: Date;
   jobId: string;
+}
+
+/// 后端 invoke('get_installed_skills') 返回的真实结构（snake_case 毫秒时间戳）。
+/// 与上面 job 状态机里的 InstalledSkill 是两套概念：这里代表已成功落盘的技能。
+export interface BackendInstalledSkill {
+  slug: string;
+  name: string;
+  software: string;
+  installed_at_ms: number;
 }
 
 // v2.0.5：失败态独立 state
@@ -275,6 +292,8 @@ export default function App() {
   const [hasKey, setHasKey] = useState(false);
   // A 轮 #P1-22：Web 端 session 绑定状态
   const [session, setSession] = useState<SessionInfo | null>(null);
+  // v2.0.8+：后端已装 Skills 统一在 App 拉取一次，通过 props 注入 Home/Explore/MySkills。
+  const [installedSkills, setInstalledSkills] = useState<BackendInstalledSkill[]>([]);
   // v2.0.7+：主区 ref + 滚动中状态。滚动停止 800ms 后 is-scrolling class 移除。
   // 配合 helper-glass.css .glass-main.is-scrolling::-webkit-scrollbar-thumb
   // 实现“鼠标上下滚动时才出现”的半透明黑色滚动条。
@@ -304,9 +323,20 @@ export default function App() {
     });
   }, []);
 
-  // 启动时拉基本信息 + LlmGateway 注入（端口 / 游客 ID）
-  useEffect(() => {
-    invoke<HelperInfo>('get_helper_info').then((i) => {
+  /// 只拉已装 Skills。install-complete 事件与 Cmd+R 都复用这个刷新函数。
+  const refreshInstalledSkills = useCallback(async () => {
+    try {
+      const list = await invoke<BackendInstalledSkill[]>('get_installed_skills');
+      setInstalledSkills(Array.isArray(list) ? list : []);
+    } catch (e) {
+      console.warn('[App] get_installed_skills 失败', e);
+    }
+  }, []);
+
+  /// Cmd+R 真实刷新：重新拉端口 / Key 状态 / 已装 Skills。
+  const refreshCoreData = useCallback(async () => {
+    try {
+      const i = await invoke<HelperInfo>('get_helper_info');
       setInfo(i);
       // M4：把端口注入 LlmGateway（fetch /llm/chat 时用）
       if (typeof i.helper_port === 'number') {
@@ -314,44 +344,80 @@ export default function App() {
         (window as unknown as { __SKILLHUB_HELPER_PORT__?: number }).__SKILLHUB_HELPER_PORT__ =
           i.helper_port;
       }
-    }).catch(() => {});
-    invoke<KeyStatus>('get_provider_keys_status')
-      .then((s) => setHasKey(Object.values(s.providers).some(Boolean)))
-      .catch(() => {});
-    // P1-22：拉 session 快照，知道是否绑定 Web 账号
+    } catch (e) {
+      console.warn('[App] get_helper_info 失败', e);
+    }
+    try {
+      const s = await invoke<KeyStatus>('get_provider_keys_status');
+      setHasKey(Object.values(s.providers).some(Boolean));
+    } catch (e) {
+      console.warn('[App] get_provider_keys_status 失败', e);
+    }
+    await refreshInstalledSkills();
+  }, [refreshInstalledSkills]);
+
+  // 启动时拉基本信息 + LlmGateway 注入（端口 / 代理 token / userId / 游客 ID）
+  useEffect(() => {
+    void refreshCoreData();
+    // 代理鉴权 token：后端启动时生成，本机所有需鉴权端点都用同一个 token
+    invoke<string>('get_proxy_token')
+      .then((t) => setProxyToken(t ?? null))
+      .catch((e) => console.warn('[App] get_proxy_token 失败，本机代理请求将使用空 token', e));
+    // P1-22：拉 session 快照，既用于顶栏徽章，也决定用量写到 session_id 还是 anonymous_id
     invoke<SessionInfo>('get_session_info')
       .then((s) => {
         setSession(s);
-        // M4：把 userId/anonymousId 注入 LlmGateway（用于 /llm/chat session_id）
-        const id = s.user_id ?? null;
-        setAnonymousId(id);
+        // 已登录 → userId 写 session_id；游客 → 下面独立 effect 取 guest id 写 anonymous_id。
+        // 不再用 setAnonymousId(user_id)，否则登录用户的用量会被记到游客 ID 上。
+        setUserId(s.user_id ?? null);
       })
-      .catch(() => {});
-    // M4：首次启动拿游客 anonymous_id
-    // MEDIUM #1（CodeReview 2026-09）：后端 ensure_guest_session 每次返回新 UUID v4，
-    // 云端 GuestSession 表会堆积 machineFingerprint 相同但 anonymousId 全不相同的“僵尸行”。
-    // 修复：前端用 localStorage 缓存 anonymous_id，同一台机器仅首次启动调一次。
-    // 仅在匿名（未绑定 Web 账号）时需要这个 ID；已绑定时以 userId 为主。
+      .catch((e) => console.warn('[App] get_session_info 失败', e));
+  }, [refreshCoreData]);
+
+  // 安装完成即刷新已装列表，保证 Home/Explore/MySkills 立即可见
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        unlisten = await listen('install-complete', () => {
+          if (!cancelled) void refreshInstalledSkills();
+        });
+      } catch (e) {
+        console.warn('[App] 注册 install-complete 监听失败', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [refreshInstalledSkills]);
+
+  // H2 修复：游客 anonymous_id 走独立 effect，仅在确认未绑定 Web 账号后才去拿。
+  // 用 session state 作 deps 保证已登录态不再触发 ensure_guest_session。
+  useEffect(() => {
+    if (session === null) return; // 还在加载中
+    if (session.user_id) return; // 已登录，不需要游客 ID
     const ANON_ID_KEY = 'helper.anonymous_id';
     const cachedAnonId =
       typeof window !== 'undefined' ? window.localStorage.getItem(ANON_ID_KEY) : null;
-    if (cachedAnonId && !session?.user_id) {
+    if (cachedAnonId) {
       setAnonymousId(cachedAnonId);
-    } else {
-      invoke<{ anonymous_id: string }>('ensure_guest_session')
-        .then((g) => {
-          if (g?.anonymous_id && !session?.user_id) {
-            setAnonymousId(g.anonymous_id);
-            try {
-              window.localStorage.setItem(ANON_ID_KEY, g.anonymous_id);
-            } catch {
-              // localStorage 被禁用 / 容量满：仅本次会话有效，下次启动重试
-            }
-          }
-        })
-        .catch(() => {});
+      return;
     }
-  }, []);
+    invoke<{ anonymous_id: string }>('ensure_guest_session')
+      .then((g) => {
+        if (g?.anonymous_id) {
+          setAnonymousId(g.anonymous_id);
+          try {
+            window.localStorage.setItem(ANON_ID_KEY, g.anonymous_id);
+          } catch {
+            // localStorage 被禁用 / 容量满：仅本次会话有效，下次启动重试
+          }
+        }
+      })
+      .catch(() => {});
+  }, [session]);
 
   // F20：C 类 Skill 未配 Key 时点 [现在配] 的回调——跳 Settings Tab + 写 hash
   // 让 Settings.tsx 里的 useEffect 监听到后自动展开 Key 编辑面板。
@@ -363,10 +429,38 @@ export default function App() {
     }
   }, [hasKey]);
 
+  // 顶栏第二个徽章：Web 账号绑定状态。已绑定显示 email（或 userId 截断），
+  // 未绑定显示「游客（50 次/天）」，点击走 openUrl 到 Web 绑定页（域名已在 ACL 白名单）。
+  const boundEmail = session?.user_email ?? null;
+  const boundUserId = session?.user_id ?? null;
+  const sessionBound = Boolean(session?.has_token && (boundEmail || boundUserId));
+  const sessionLabel = sessionBound
+    ? boundEmail ?? (boundUserId as string).slice(0, 8)
+    : '游客（50 次/天）';
+  const sessionAria = sessionBound
+    ? `已绑定 Web 账号 ${sessionLabel} · 点此查看设置`
+    : '游客（50 次/天）· 点此绑定 Web 账号';
+  const handleSessionBadge = () => {
+    if (sessionBound) {
+      setTab('settings');
+      return;
+    }
+    void openUrl('https://skillhub.proclaw.cc/settings').catch((e) => {
+      console.warn('[App] 打开 Web 绑定页失败', e);
+    });
+  };
+
   // M4 + v2.0.7+：键盘快捷键 Cmd/Ctrl + 1..4 切换侧边栏 Tab（home 不在计数中）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      // Cmd/Ctrl + R：真实刷新（重新拉 helper info / Key 状态 / 已装 Skills）。
+      // 必须放在 parseInt 早退之前，否则 'r' 会被 Number.isNaN 分支吞掉。
+      if (e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        void refreshCoreData();
+        return;
+      }
       const n = parseInt(e.key, 10);
       if (Number.isNaN(n)) return;
       const idx = n - 1;
@@ -374,14 +468,11 @@ export default function App() {
         e.preventDefault();
         setTab(SIDEBAR_TABS[idx]);
         focusTabById(SIDEBAR_TABS[idx]);
-      } else if (e.key.toLowerCase() === 'r') {
-        // Cmd/Ctrl + R：刷新当前 Tab 数据（占位，未来 Home/Explore 接 refetch）
-        e.preventDefault();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [focusTabById]);
+  }, [focusTabById, refreshCoreData]);
 
   return (
     <div className="glass-app-layout">
@@ -390,6 +481,7 @@ export default function App() {
       <aside className="glass-sidebar" aria-label="主导航">
         <button
           type="button"
+          id="home-tab"
           className="glass-sidebar-header"
           aria-label="返回首页 SkillHub"
           title="首页 · SkillHub"
@@ -447,6 +539,31 @@ export default function App() {
               />
             </span>
           </div>
+          {/* v2.0.8+：Web 账号绑定徽章（Key 徽章旁）。窄侧栏用 tooltip/aria-label 展示完整文案。 */}
+          <div
+            className="glass-sidebar-status"
+            role="button"
+            tabIndex={0}
+            aria-label={sessionAria}
+            data-label={sessionAria}
+            title={sessionAria}
+            onClick={handleSessionBadge}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleSessionBadge();
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="glass-sidebar-status-icon" aria-hidden>
+              <User size={18} strokeWidth={2} className={sessionBound ? 'text-cyan-300' : 'text-muted'} />
+              <span
+                className={`glass-sidebar-status-dot ${sessionBound ? 'success' : 'warn'}`}
+                aria-hidden
+              />
+            </span>
+          </div>
           </div>
       </aside>
 
@@ -482,7 +599,7 @@ export default function App() {
                 {' '}— KeyStore 已 fallback 到临时目录，{info.key_store_fallback_reason ? `原因：${info.key_store_fallback_reason}` : '重启后丢失'}
               </div>
             )}
-          {/* M4：5 Tab panel */}
+          {/* M4：5 Tab panel。M6：每个 panel 用 Suspense 包裹，懒加载未命中时显示 TabSkeleton。 */}
           <div
             role="tabpanel"
             id="home-panel"
@@ -490,7 +607,16 @@ export default function App() {
             tabIndex={0}
             hidden={tab !== 'home'}
           >
-            {tab === 'home' && <Home version={info?.version ?? '2.0.7'} hasKey={hasKey} onNeedKey={handleNeedKey} />}
+            {tab === 'home' && (
+              <Suspense fallback={<TabSkeleton kind="home" />}>
+                <Home
+                  version={info?.version ?? '2.0.7'}
+                  hasKey={hasKey}
+                  onNeedKey={handleNeedKey}
+                  installedSkills={installedSkills}
+                />
+              </Suspense>
+            )}
           </div>
           <div
             role="tabpanel"
@@ -499,7 +625,15 @@ export default function App() {
             tabIndex={0}
             hidden={tab !== 'explore'}
           >
-            {tab === 'explore' && <Explore hasKey={hasKey} onNeedKey={handleNeedKey} />}
+            {tab === 'explore' && (
+              <Suspense fallback={<TabSkeleton kind="explore" />}>
+                <Explore
+                  hasKey={hasKey}
+                  onNeedKey={handleNeedKey}
+                  installedSkills={installedSkills}
+                />
+              </Suspense>
+            )}
           </div>
           <div
             role="tabpanel"
@@ -508,7 +642,11 @@ export default function App() {
             tabIndex={0}
             hidden={tab !== 'my'}
           >
-            {tab === 'my' && <MySkills />}
+            {tab === 'my' && (
+              <Suspense fallback={<TabSkeleton kind="my" />}>
+                <MySkills installedSkills={installedSkills} />
+              </Suspense>
+            )}
           </div>
           <div
             role="tabpanel"
@@ -517,7 +655,11 @@ export default function App() {
             tabIndex={0}
             hidden={tab !== 'usage'}
           >
-            {tab === 'usage' && <Usage />}
+            {tab === 'usage' && (
+              <Suspense fallback={<TabSkeleton kind="usage" />}>
+                <Usage />
+              </Suspense>
+            )}
           </div>
           <div
             role="tabpanel"
@@ -527,7 +669,9 @@ export default function App() {
             hidden={tab !== 'settings'}
           >
             {tab === 'settings' && (
-              <AppJobsBridge onNavigateToSettings={() => setTab('settings')} />
+              <Suspense fallback={<TabSkeleton kind="settings" />}>
+                <AppJobsBridge onNavigateToSettings={() => setTab('settings')} />
+              </Suspense>
             )}
           </div>
         </div>
@@ -689,9 +833,10 @@ function AppJobsBridge({ onNavigateToSettings }: { onNavigateToSettings?: () => 
 
   // 监听协议唤起（外部浏览器调 skillhub:// 后，Rust 端 emit 这个事件）
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined;
+    let unlistenInstall: UnlistenFn | undefined;
+    let unlistenUninstall: UnlistenFn | undefined;
     (async () => {
-      unlisten = await listen<{
+      unlistenInstall = await listen<{
         slug: string;
         name?: string;
         software?: string;
@@ -712,8 +857,26 @@ function AppJobsBridge({ onNavigateToSettings }: { onNavigateToSettings?: () => 
         // v2.0.5 修复：仅在 About Tab 时切回 Settings
         onNavigateToSettings?.();
       });
+
+      // H5 修复：监听 Rust 端 emit 的 `uninstall-from-url` 事件。
+      // 原实现协议卸载事件没有 listener，被静默吞掉（log::warn）。
+      // 现在转发到 Settings 内的卸载 modal（同 UI 内点卸载按钮的体验）。
+      unlistenUninstall = await listen<{ slug: string; source: string }>(
+        'uninstall-from-url',
+        (e) => {
+          const fn = (window as unknown as {
+            __skillhubTriggerUninstall?: (slug: string) => void;
+          }).__skillhubTriggerUninstall;
+          if (fn) fn(e.payload.slug);
+          // 切到 Settings 让 modal 可见
+          onNavigateToSettings?.();
+        },
+      );
     })();
-    return () => unlisten?.();
+    return () => {
+      unlistenInstall?.();
+      unlistenUninstall?.();
+    };
   }, []);
 
   // === 实际 invoke install_skill（modal 确认后才走） ===
@@ -726,6 +889,63 @@ function AppJobsBridge({ onNavigateToSettings }: { onNavigateToSettings?: () => 
       ) => void)
     | null
   >(null);
+
+  // H4 修复：UI 内（Home/Explore/Settings 已装列表）点"安装"直接走这条路径，
+  // 跳过 ConfirmInstallModal（modal 的设计意图是防"Web 页面诱导"，UI 按钮已是用户授权）。
+  // 仍然把 job 状态交给 jobs 状态机（pendingMetaRef + setJobs），UI 进度条统一收敛。
+  const userInstallSkill = async (
+    slug: string,
+    skill: { name?: string; software?: string | string[]; version?: string },
+  ) => {
+    const tags = Array.isArray(skill.software)
+      ? (skill.software as string[])
+      : skill.software
+        ? [skill.software]
+        : [];
+    const software = tags[0] ?? 'unknown';
+    const name = skill.name ?? slug;
+    const version = skill.version;
+    try {
+      const jobId = await invoke<string>('install_skill', {
+        slug,
+        skill: { slug, name, software, version },
+      });
+      pendingMetaRef.current[jobId] = { slug, name, software, version };
+      setJobs((prev) => ({
+        ...prev,
+        [jobId]: { jobId, slug, name, software, version, phase: 'running' },
+      }));
+    } catch (e) {
+      const syntheticJobId = `failed-${Date.now()}`;
+      setJobs((prev) => ({
+        ...prev,
+        [syntheticJobId]: {
+          jobId: syntheticJobId,
+          slug,
+          name,
+          software,
+          phase: 'failed',
+          failure: {
+            jobId: syntheticJobId,
+            skillName: name,
+            error: typeof e === 'string' ? e : '调起安装失败，请重试',
+          },
+          notifiedAt: Date.now(),
+        },
+      }));
+    }
+  };
+
+  // 暴露 UI 用入口到 window，让 Home/Explore 的"安装"按钮调同一函数（保证 jobs 状态机统一收口）
+  useEffect(() => {
+    (window as unknown as {
+      __skillhubUserInstallSkill?: (
+        slug: string,
+        skill: { name?: string; software?: string | string[]; version?: string },
+      ) => Promise<void>;
+    }).__skillhubUserInstallSkill = (slug, skill) => userInstallSkill(slug, skill);
+  }, []);
+
   const reallyStartInstall = async (slug: string, name: string, software: string) => {
     // A 轮 #P1-21：从 protocol URL 暂存的版本里取，取完即清除
     const version = pendingVersionBySlugRef.current[slug];
@@ -973,17 +1193,23 @@ function InstallJobsStack({
   // 排序：按 notifiedAt 倒序（最近活跃在前）
   list.sort((a, b) => (b.notifiedAt ?? 0) - (a.notifiedAt ?? 0));
 
-  // 成功的浮窗 2 秒后自动收起（移出 jobs state key）
+  // 成功的浮窗 2 秒后自动收起（移出 jobs state key）。
+  // M7 修复：原 deps 用 `onDismissSuccess`（每次 render 都是新 lambda），导致
+  // effect 在每次 render 都重跑、clearTimeout 之前的 timer，成功 toast 永远不被自动收起。
+  // 修：用 onDismissSuccessRef 包一层稳定引用，deps 只跟成功 job 的 id 列表走。
+  const onDismissSuccessRef = useRef(onDismissSuccess);
+  onDismissSuccessRef.current = onDismissSuccess;
   useEffect(() => {
     const timers = list
       .filter((j) => j.phase === 'succeeded')
       .map((j) =>
         setTimeout(() => {
-          onDismissSuccess(j.jobId);
+          onDismissSuccessRef.current(j.jobId);
         }, 2000),
       );
     return () => timers.forEach(clearTimeout);
-  }, [list.map((j) => `${j.jobId}:${j.phase}`).join(','), onDismissSuccess]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.filter((j) => j.phase === 'succeeded').map((j) => j.jobId).join(',')]);
 
   const MAX_VISIBLE = 3;
   const visible = list.slice(0, MAX_VISIBLE);

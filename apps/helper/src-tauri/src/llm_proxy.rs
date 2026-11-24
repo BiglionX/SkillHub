@@ -1,16 +1,19 @@
 //! 本机 HTTP 代理服务（llm_proxy.rs）
 //!
 //! 监听 `127.0.0.1:{random_port}`，提供：
-//! - POST /llm/chat   转发 LLM 调用（拿用户本地 Key 调 Provider）
-//! - GET  /llm/status 助手是否在线 + 是否配了 Key（前端探测用）
-//! - POST /llm/keys/test 测试某个 Provider 的 Key
+//! - POST /llm/chat   转发 LLM 调用（拿用户本地 Key 调 Provider）【需 Bearer】
+//! - GET  /llm/status 助手是否在线 + 是否配了 Key（前端探测用）【免鉴权】
+//! - GET  /llm/discover 端口探测【免鉴权，不泄露 Key 配置】
+//! - POST /llm/keys/test 测试某个 Provider 的 Key【需 Bearer】
+//! - GET  /llm/usage/summary / POST /llm/usage/sync【均需 Bearer】
 //!
 //! Web 前端通过 `window.__SKILLHUB_HELPER_PORT__` 拿到端口。
 
 use axum::{
-    extract::State,
-    http::{header::HeaderName, HeaderValue, Method, StatusCode},
-    response::{IntoResponse, Json},
+    extract::{Request, State},
+    http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
@@ -21,8 +24,29 @@ use tower_http::cors::CorsLayer;
 
 use crate::key_store::KeyStore;
 use crate::protocol;
-use crate::provider::{ChatMessage, ChatRequest, LlmProvider, ProviderConfig};
+use crate::provider::{validate_base_url, ChatMessage, ChatRequest, LlmProvider, ProviderConfig};
 use crate::usage_store::{UsageRecordInput, UsageStore};
+
+/// M5 §6.2：游客每天 LLM 调用上限。超过直接 503。
+/// 调小这个常量只影响本地 SQLite 计数（不涉及云端），修改后需 cargo test。
+const GUEST_DAILY_LIMIT: i64 = 50;
+
+/// 会消费用户 Key 或写入本地数据的路由，必须带 Bearer token
+const PROTECTED_PATHS: &[&str] = &[
+    "/llm/chat",
+    "/llm/keys/test",
+    "/llm/usage/sync",
+    "/llm/usage/summary",
+];
+
+/// 允许访问本机代理的 Origin（浏览器开发服务器 + 线上站 + Tauri WebView）
+const ALLOWED_ORIGINS: &[&str] = &[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://skillhub.proclaw.cc",
+    "tauri://localhost",
+    "http://tauri.localhost",
+];
 
 /// 全局状态，注入到 axum
 pub struct LlmProxyState {
@@ -67,13 +91,71 @@ pub fn spawn(state: Arc<LlmProxyState>) -> ProxyHandle {
     ProxyHandle(port)
 }
 
+/// 纯函数：是否需要按游客限流。
+/// 只有未登录（session_id 为 None）才算游客；session_id 语义为登录用户 userId。
+fn should_enforce_guest_limit(session_id: &Option<String>) -> bool {
+    session_id.is_none()
+}
+
+/// 校验 `Authorization: Bearer <proxy_token>`。
+/// token 来自 `KeyStore::proxy_token()`（每次启动轮换），不落盘。
+fn check_bearer(state: &LlmProxyState, headers: &HeaderMap) -> Result<(), Response> {
+    let expected = state.key_store.proxy_token();
+    let auth = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    // scheme 大小写不敏感；用 split_once 避免按字节切片触发 UTF-8 panic
+    let provided = auth
+        .split_once(' ')
+        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
+        .map(|(_, token)| token)
+        .unwrap_or("");
+    if provided.is_empty() || provided.len() != expected.len() || provided != expected {
+        return Err((StatusCode::UNAUTHORIZED, "Unauthorized").into_response());
+    }
+    Ok(())
+}
+
+/// 全局安全中间件：
+/// 1) 所有带 Origin 的请求必须在白名单内（无 Origin 的非浏览器请求只校验 token）；
+/// 2) 受保护路由校验 Bearer token。
+async fn security_middleware(
+    State(state): State<Arc<LlmProxyState>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if let Some(origin) = req
+        .headers()
+        .get(header::ORIGIN)
+        .and_then(|v| v.to_str().ok())
+    {
+        if !ALLOWED_ORIGINS.contains(&origin) {
+            log::warn!("拒绝非法 Origin: {}", origin);
+            return (StatusCode::FORBIDDEN, "Forbidden: disallowed Origin").into_response();
+        }
+    }
+
+    if PROTECTED_PATHS.contains(&req.uri().path()) {
+        if let Err(resp) = check_bearer(&state, req.headers()) {
+            return resp;
+        }
+    }
+
+    next.run(req).await
+}
+
 fn build_router(state: Arc<LlmProxyState>) -> Router {
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
         .allow_origin("http://127.0.0.1:3000".parse::<HeaderValue>().unwrap())
         .allow_origin("https://skillhub.proclaw.cc".parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([HeaderName::from_static("content-type")])
+        // 浏览器携带 Authorization 时预检必须放行该 header
+        .allow_headers([
+            HeaderName::from_static("content-type"),
+            HeaderName::from_static("authorization"),
+        ])
         .allow_credentials(true);
 
     Router::new()
@@ -84,29 +166,23 @@ fn build_router(state: Arc<LlmProxyState>) -> Router {
         .route("/llm/usage/summary", get(handle_usage_summary))
         .route("/llm/usage/sync", post(handle_usage_sync))
         .route("/health", get(|| async { "ok" }))
+        // 注意 layer 顺序：先加 security 再加 cors，cors 在最外层先处理 OPTIONS 预检，
+        // 否则预检请求会被 Bearer 校验拦截。
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            security_middleware,
+        ))
         .layer(cors)
         .with_state(state)
 }
 
-#[derive(Debug, Serialize)]
-struct DiscoverResponse {
-    name: &'static str,
-    version: &'static str,
-    installed_software: Vec<String>,
-    protocol_registered: bool,
-}
-
 /// GET /llm/discover
-/// Web 端无需事先知道端口时，可扫常见端口范围探测助手
-async fn handle_discover(State(state): State<Arc<LlmProxyState>>) -> impl IntoResponse {
-    let active = state.key_store.get_active_key().ok().flatten();
-    let provider = active.as_ref().map(|(p, _)| p.clone());
-    let has_key = active.is_some();
+/// Web 端无需事先知道端口时可扫常见端口范围探测助手。
+/// 免鉴权但不得暴露 has_key / active_provider，避免泄露用户 Key 配置。
+async fn handle_discover() -> impl IntoResponse {
     Json(serde_json::json!({
         "name": "SkillHub",
         "version": env!("CARGO_PKG_VERSION"),
-        "has_key": has_key,
-        "active_provider": provider,
         "protocol_registered": protocol::is_registered(),
         "capabilities": ["llm_chat", "playbook_run", "software_scan"],
     }))
@@ -127,9 +203,12 @@ struct ChatBody {
     /// M4：客户端生成的幂等键（前端用 crypto.randomUUID() 生成），重复提交同 key 只记 1 条
     #[serde(default)]
     client_record_id: Option<String>,
-    /// M4：游客 anonymous_id 或登录 userId，用于把用量记录关联到会话
+    /// M4：仅登录用户的 userId。为 None 表示游客（触发限流）
     #[serde(default)]
     session_id: Option<String>,
+    /// 游客匿名标识（前端本地生成），仅游客路径使用；session_kind 仍记为 guest
+    #[serde(default)]
+    pub anonymous_id: Option<String>,
     /// M4：调用哪个 Skill 的 slug（例如 "photoshop-retouch"），用于按 Skill 拆分汇总
     #[serde(default)]
     skill_slug: Option<String>,
@@ -140,6 +219,29 @@ fn default_temperature() -> f32 {
 }
 fn default_max_tokens() -> u32 {
     500
+}
+
+/// 请求体长度校验，超限返回 400 + reason="invalid_input"
+fn validate_chat_input(body: &ChatBody) -> Option<ChatError> {
+    let invalid = |field: &'static str| ChatError {
+        reason: "invalid_input",
+        message: format!("参数 {} 超出允许长度", field),
+    };
+    if body.system_prompt.chars().count() > 20_000 {
+        return Some(invalid("system_prompt"));
+    }
+    if body.user_message.chars().count() > 20_000 {
+        return Some(invalid("user_message"));
+    }
+    if body.detected_software.len() > 30 {
+        return Some(invalid("detected_software"));
+    }
+    if let Some(slug) = body.skill_slug.as_ref() {
+        if slug.chars().count() > 100 {
+            return Some(invalid("skill_slug"));
+        }
+    }
+    None
 }
 
 #[derive(Debug, Serialize)]
@@ -169,7 +271,48 @@ async fn handle_chat(
     State(state): State<Arc<LlmProxyState>>,
     Json(body): Json<ChatBody>,
 ) -> axum::response::Response {
-    use axum::response::IntoResponse;
+    // 0. 输入长度校验
+    if let Some(err) = validate_chat_input(&body) {
+        return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+    }
+
+    // M5 §6.2：游客 50 次/天前置检查。
+    // 真正游客 = session_id 为 None（session_id 现在只表示登录用户 userId）。
+    // 注意：try_reserve_guest 在 LLM 调用之前执行，因此即使后续 LLM 调用失败也会占用额度
+    //（这是期望行为，防止攻击者用必然失败的请求绕过限流）；并发安全由 SQLite 事务保证。
+    if should_enforce_guest_limit(&body.session_id) {
+        let anon = body.anonymous_id.as_deref().unwrap_or("unknown");
+        match state
+            .usage_store
+            .try_reserve_guest(anon, GUEST_DAILY_LIMIT)
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(ChatError {
+                        reason: "guest_over_limit",
+                        message: format!(
+                            "游客每天最多 {} 次 LLM 调用，今日额度已用完。绑定 Web 账号或配置 API Key 解锁",
+                            GUEST_DAILY_LIMIT
+                        ),
+                    }),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                log::warn!("游客额度预占失败: {}", e);
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(ChatError {
+                        reason: "guest_over_limit",
+                        message: "本地用量存储异常，请查看日志".to_string(),
+                    }),
+                )
+                    .into_response();
+            }
+        }
+    }
 
     // 1. 取用户当前激活的 Key
     let (provider, api_key) = match state.key_store.get_active_key() {
@@ -185,11 +328,12 @@ async fn handle_chat(
                 .into_response();
         }
         Err(e) => {
+            log::warn!("读取本地 Key 失败: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ChatError {
                     reason: "key_store_error",
-                    message: e.to_string(),
+                    message: "本地密钥存储异常，请查看日志".to_string(),
                 }),
             )
                 .into_response();
@@ -197,10 +341,28 @@ async fn handle_chat(
     };
 
     // 2. 构造 ProviderConfig + ChatRequest
+    // A 轮 #PR-4：从 KeyStore 读已保存的 base_url（custom 自托管用），不再传 None。
+    // 若保存的 URL 被篡改（SSRF 防护），直接 400 而不是带着用户 Key 发请求。
+    let saved_urls = state.key_store.get_all_base_urls().unwrap_or_default();
+    let base_url = saved_urls.get(&provider).cloned();
+    if let Some(ref u) = base_url {
+        if let Err(e) = validate_base_url(u, true) {
+            log::warn!("已保存的 base_url 非法（provider={}）: {}", provider, e);
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ChatError {
+                    reason: "invalid_input",
+                    message: "已保存的 Base URL 非法，请在设置页重新填写".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    }
+
     let config = ProviderConfig {
         provider: provider.clone(),
         api_key,
-        base_url: None,
+        base_url,
         model: String::new(), // mod.rs 内部会用 provider 默认
     };
 
@@ -246,6 +408,8 @@ async fn handle_chat(
                 .client_record_id
                 .clone()
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            // session_kind 仍按登录与否判定；session_id 字段游客写 anonymous_id，
+            // 这样 count_today_guest 能按 session_kind='guest' 统计到游客调用。
             let session_kind = if body.session_id.is_some() {
                 "user"
             } else {
@@ -257,7 +421,10 @@ async fn handle_chat(
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as i64)
                     .unwrap_or(0),
-                skill_slug: body.skill_slug.clone().unwrap_or_else(|| "general".to_string()),
+                skill_slug: body
+                    .skill_slug
+                    .clone()
+                    .unwrap_or_else(|| "general".to_string()),
                 provider_id: provider.clone(),
                 // CRITICAL #2 复盘：必须用 resp.model（请求体里的 model），不能拿
                 // tokens_used（数字）的 to_string 填进来，否则 SQLite model 列
@@ -269,7 +436,7 @@ async fn handle_chat(
                 cost_estimate: None, // 前端按 ProviderPricing 算好后回传 / 留空
                 source: "LOCAL_DESKTOP".to_string(),
                 session_kind: session_kind.to_string(),
-                session_id: body.session_id.clone(),
+                session_id: body.session_id.clone().or(body.anonymous_id.clone()),
             };
             if let Err(e) = state.usage_store.record(usage_input) {
                 log::warn!("用量记账失败（不影响主流程）：{}", e);
@@ -290,12 +457,14 @@ async fn handle_chat(
                 .into_response()
         }
         Err(e) => {
-            log::warn!("LLM 调用失败: {}", e);
+            // 详细错误（可能含上游 body / URL）只写本地日志，不回传前端
+            log::warn!("LLM 调用失败（provider={}）: {}", provider, e);
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ChatError {
                     reason: "provider_error",
-                    message: e.to_string(),
+                    message: "LLM 服务调用失败，请检查网络或 Key 是否有效（详情已写入本地日志）"
+                        .to_string(),
                 }),
             )
                 .into_response()
@@ -332,6 +501,39 @@ struct TestKeyBody {
 }
 
 async fn handle_test_key(Json(body): Json<TestKeyBody>) -> impl IntoResponse {
+    // 输入长度校验
+    if body.api_key.chars().count() > 500 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "ok": false, "reason": "invalid_input", "error": "api_key 过长"
+            })),
+        )
+            .into_response();
+    }
+    if let Some(ref u) = body.base_url {
+        if u.chars().count() > 500 {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "ok": false, "reason": "invalid_input", "error": "base_url 过长"
+                })),
+            )
+                .into_response();
+        }
+        // 允许 localhost（用户可能测试本地 vLLM），但仍走 SSRF 白名单
+        if let Err(e) = validate_base_url(u, true) {
+            log::warn!("Key 测试传入非法 base_url: {}", e);
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "ok": false, "reason": "invalid_input", "error": "Base URL 非法或不被允许"
+                })),
+            )
+                .into_response();
+        }
+    }
+
     let config = ProviderConfig {
         provider: body.provider.clone(),
         api_key: body.api_key,
@@ -340,12 +542,23 @@ async fn handle_test_key(Json(body): Json<TestKeyBody>) -> impl IntoResponse {
     };
 
     match LlmProvider::test_connection(&config).await {
-        Ok(models) => (StatusCode::OK, Json(serde_json::json!({"ok": true, "models": models}))).into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"ok": false, "error": e.to_string()})),
+        Ok(models) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"ok": true, "models": models})),
         )
             .into_response(),
+        Err(e) => {
+            // 脱敏：上游错误可能含 Key / 上游 body / URL，只写日志
+            log::warn!("Key 测试失败: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "ok": false,
+                    "error": "Key 测试失败：请确认 Key、模型名与 Base URL 正确"
+                })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -370,12 +583,21 @@ async fn handle_usage_summary(
     axum::extract::Query(q): axum::extract::Query<UsageQuery>,
 ) -> impl IntoResponse {
     match state.usage_store.summarize(&q.range) {
-        Ok(s) => (StatusCode::OK, Json(serde_json::json!({"ok": true, "summary": s}))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"ok": false, "error": e.to_string()})),
+        Ok(s) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"ok": true, "summary": s})),
         )
             .into_response(),
+        Err(e) => {
+            log::warn!("读取本地用量汇总失败: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "ok": false, "error": "本地用量数据读取失败"
+                })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -402,15 +624,39 @@ async fn handle_usage_sync(
             }
         }
     }
-    let summary = state.usage_store.summarize("30d").ok();
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "ok": true,
-            "inserted": inserted,
-            "duplicates": duplicates,
-            "summary": summary,
-        })),
-    )
-        .into_response()
+    match state.usage_store.summarize("30d") {
+        Ok(summary) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "inserted": inserted,
+                "duplicates": duplicates,
+                "summary": summary,
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            log::warn!("sync 后读取用量汇总失败: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "ok": false, "error": "本地用量数据读取失败"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guest_limit_enforced_only_for_anonymous_session() {
+        // 真正游客（未登录）才限流
+        assert!(should_enforce_guest_limit(&None));
+        // 有 userId 的登录用户不限流
+        assert!(!should_enforce_guest_limit(&Some("user-123".to_string())));
+    }
 }

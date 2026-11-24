@@ -1,7 +1,7 @@
 # SkillHub Helper（桌面助手）
 
-> 独立 Tauri + Rust 桌面客户端。
-> **不入 pnpm workspace，不参与 turbo build。** 单独 CI job 构建（参考 PRD §9.2 模块依赖图）。
+> Tauri + Rust 桌面客户端。已纳入 pnpm workspace（`@skillhub/helper`），
+> 但因依赖 Rust 工具链与 Tauri 系统库，不由 turbo 统一构建；CI 单独 job 跑前端 vitest + `cargo test`（见 `.github/workflows/ci-cd.yml`）。
 
 ## 职责（v2.1 决策 D6 + D8）
 
@@ -43,7 +43,10 @@
 | `protocol.rs` Windows 注册表 + Mac Info.plist 注册 `skillhub://` | ✅ |
 | 助手设置页 React UI（填 Key / 切换 Provider / Test Key） | ✅ |
 
-## M4 范围（v2.1 新增，规划中）
+## M4 范围（v2.1 新增，已落地）
+
+> 2026-11 投产审计后全部接线完成：`get_installed_skills` / `pick_export_path` / `get_proxy_token`
+> 三个 invoke 已注册，MySkills 页面与 CSV 导出可用；启动自动执行 90 天清理。
 
 | 任务 | 工期 |
 |---|---|
@@ -66,7 +69,7 @@ apps/helper/
 ├── src-tauri/
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
-│   ├── capabilities/default.json        # ACL：仅放行 3 个 Provider 文档域名
+│   ├── capabilities/default.json        # ACL：3 个 Provider 文档域名 + skillhub.proclaw.cc（onboarding）
 │   └── src/
 │       ├── main.rs                      # 入口、托盘、单实例
 │       ├── lib.rs                       # invoke 命令注册（含 M4 新增）
@@ -112,7 +115,8 @@ apps/helper/
 通过三个机制：
 
 1. **协议唤起**：`skillhub://install/{slug}?version={v}&job={jobId}` → 唤起助手窗口
-2. **本机 HTTP 转发**：助手启动后监听 `127.0.0.1:{random_port}`，Web 通过 `window.__SKILLHUB_HELPER_PORT__` 拿到端口调 `/llm/chat`
+2. **本机 HTTP 转发**：助手启动后监听 `127.0.0.1:{random_port}`，Web 通过 `window.__SKILLHUB_HELPER_PORT__` 拿到端口调 `/llm/chat`。
+   **除 `/llm/status`、`/llm/discover`、`/health` 外，所有端点（含 `/llm/usage/summary`）需带 `Authorization: Bearer <token>`**，token 由 `get_proxy_token` invoke 在启动时拉取（每次启动轮换、不落盘）；Origin 也做白名单校验。
 3. **【M4 新增】匿名游客会话**：桌面端启动时调 `ensure_guest_session` 生成 anonymousId，用于 `/api/v2/intent/parse` / `/api/v2/skills/*/generate` 等 API 携带游客身份
 
 ## 资源约束（M4 调整后）
@@ -137,4 +141,25 @@ pnpm tauri dev
 
 # 构建
 pnpm tauri build
+
+# 前端单元测试（vitest）
+pnpm --filter @skillhub/helper run test
+
+# Rust 单元测试（需 Rust 工具链；版本号先归一化以绕过前导零）
+node scripts/normalize-tauri-version.mjs
+cargo test --manifest-path apps/helper/src-tauri/Cargo.toml --lib
+
+# 类型检查
+pnpm --filter @skillhub/helper run typecheck
 ```
+
+## 安全设计（2026-11 投产修复）
+
+- LLM Key：AES-256-GCM 加密，密钥由机器指纹 + 当前用户派生（不落盘、无全零 fallback），密文文件 Unix 权限 0600；旧的明文 `.key` 会自动迁移后删除。
+- 本机代理：Bearer token + Origin 白名单；内置 Provider 忽略前端传入的 base_url（防 SSRF），custom 走白名单校验。
+- 安装剧本：Zip Slip 路径校验、SHA-256 前置校验、命令白名单 + 参数净化；Skill 元数据仅放行 6 个白名单字段。
+- 游客限流：`guest_quota` 表按机器绑定的稳定 anonymous_id 原子计数（50 次/天），前端无法伪造 session_id 绕过。
+- 隐私：上报云端的机器指纹为不可逆 SHA-256 哈希，不再上传原始硬件 ID。
+- 签名：仓库为开源未签名发行，每个 release 附带 `SHA256SUMS.txt` 供完整性校验。
+- CSP：生产构建用严格 CSP；`devCsp` 单独放行 Vite HMR 的 `ws://localhost:1420`，开发热更新不受影响。
+- 剧本变量：`software.version` 由 Windows 注册表读取，供 `excel-automation` 定位 Office 注册表路径；`blender-addon` 使用无 `;` 的 Python 表达式以通过命令参数白名单。

@@ -9,7 +9,9 @@
  *
  * F20（P0）：当 category === 'C' 且未配 LLM Key 时，点 [安装] 先弹 Dialog
  * 「此 Skill 需要大模型（约 30 秒配好）」，用户点 [现在配] 才跳设置。
- * - category undefined 兜底按 C 类处理（最严防漏）
+ * - M11 修复：category undefined 兜底改为按 'A'（环境依赖型，不需 LLM）处理，
+ *   避免给「seed-skills.json 本地预置的无 category 字段的 Skill」误弹 modal。
+ *   Web API 显式返回 category === 'C' 的仍严格拦截。
  * - hasKey === undefined 兜底按未配处理
  * - onNeedKey 可选；不传时 [现在配] 仍能关闭 Dialog 但不会跳转
  *
@@ -57,9 +59,12 @@ export default function SkillCard({
   // F20：拦截 Dialog 开关
   const [guardOpen, setGuardOpen] = useState(false);
 
-  // F20：拦截判断（C 类 + 未配 Key 才弹 Dialog）
+  // F20：拦截判断（C 类 + 未配 Key 才弹 Dialog）。
+  // M11 修复：category undefined 兜底改为 'A'（不拦截），让 seed-skills.json 本地预置的
+  // 无 category 字段 Skill 正常试用；只有 Web API 明确标 'C' 才拦截。
   const handleInstallClick = () => {
-    const isCClass = (skill.category ?? 'C') === 'C';
+    const effectiveCategory = skill.category ?? 'A';
+    const isCClass = effectiveCategory === 'C';
     const keyMissing = hasKey !== true;
     if (isCClass && keyMissing) {
       setGuardOpen(true);

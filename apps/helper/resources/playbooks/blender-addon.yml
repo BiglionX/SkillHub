@@ -38,7 +38,9 @@ steps:
     args:
       - --background
       - --python-expr
-      - "import bpy; bpy.ops.preferences.addon_enable(module='${skill.slug}')"
+      # 投产修复：避免 `;` 被命令参数白名单拒绝（SHELL_META_CHARS）。
+      # 用 __import__ 表达式替代 `import bpy;` 语句，语义等价且无 shell 元字符。
+      - "__import__('bpy').ops.preferences.addon_enable(module='${skill.slug}')"
 
   - id: verify
     type: file-exists

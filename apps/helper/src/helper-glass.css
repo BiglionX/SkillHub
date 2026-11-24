@@ -567,6 +567,54 @@
   animation: glass-spin 0.8s linear infinite;
 }
 
+/* ============== M6 加载骨架屏 (Skeleton + shimmer) ==============
+   主题：与 glass-card-soft 同色调（深色玻璃），加 cyan shimmer 扫光动画。
+   用法：
+     <div className="glass-skeleton glass-skeleton-line" style={{ height: 16, width: '60%' }} />
+     <div className="glass-skeleton glass-skeleton-card" style={{ height: 120 }} />
+*/
+@keyframes glass-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.glass-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.06) 0%,
+    rgba(148, 163, 184, 0.18) 50%,
+    rgba(148, 163, 184, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: glass-shimmer 1.4s ease-in-out infinite;
+}
+.glass-skeleton-block { /* 长方形 block 默认高 14px */
+  height: 14px;
+}
+.glass-skeleton-line { /* 单行文字 placeholder */
+  height: 12px;
+}
+.glass-skeleton-card { /* 卡片形 placeholder（已含 padding 不再叠） */
+  border: 1px solid var(--g-border);
+  border-radius: 8px;
+  padding: 16px;
+  background-color: rgba(15, 23, 42, 0.4);
+  background-image: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.04) 0%,
+    rgba(148, 163, 184, 0.12) 50%,
+    rgba(148, 163, 184, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: glass-shimmer 1.4s ease-in-out infinite;
+}
+.glass-skeleton-pill {
+  display: inline-block;
+  height: 22px;
+  min-width: 64px;
+  border-radius: 999px;
+}
+
 /* ============== 状态点（圆点徽章：绿色/灰色，inline style 用） ============== */
 .status-dot-success { background: var(--g-green-400); box-shadow: 0 0 8px var(--g-green-400); }
 .status-dot-neutral { background: var(--g-text-faint); }
@@ -623,6 +671,61 @@
 .leading-tight { line-height: 1.25; }
 .font-mono { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; }
 .resize-y { resize: vertical; }
+
+/* v2.0.8+：继续补齐业务代码实际使用、但 styles.css 未定义的 Tailwind utility 类。
+   全部用真实 CSS 规则实现（不引入 Tailwind），仅新增，不改已有规则。 */
+.max-w-xl { max-width: 576px; }
+.max-w-3xl { max-width: 768px; }
+.max-w-4xl { max-width: 896px; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.px-6 { padding-left: 24px; padding-right: 24px; }
+.py-6 { padding-top: 24px; padding-bottom: 24px; }
+.py-10 { padding-top: 40px; padding-bottom: 40px; }
+.py-1 { padding-top: 4px; padding-bottom: 4px; }
+.py-1\.5 { padding-top: 6px; padding-bottom: 6px; }
+.px-1\.5 { padding-left: 6px; padding-right: 6px; }
+.ml-auto { margin-left: auto; }
+.ml-2 { margin-left: 8px; }
+.ml-3 { margin-left: 12px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-5 { gap: 20px; }
+.text-\[10px\] { font-size: 10px; }
+.text-\[11px\] { font-size: 11px; }
+.text-\[12px\] { font-size: 12px; }
+.text-\[13px\] { font-size: 13px; }
+.text-\[14px\] { font-size: 14px; }
+.text-\[18px\] { font-size: 18px; }
+.text-base { font-size: 16px; }
+.text-xl { font-size: 20px; }
+.text-center { text-align: center; }
+.leading-relaxed { line-height: 1.625; }
+.grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 768px) {
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.min-w-0 { min-width: 0; }
+.min-w-\[180px\] { min-width: 180px; }
+.max-h-24 { max-height: 96px; }
+.max-h-44 { max-height: 176px; }
+.overflow-y-auto { overflow-y: auto; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.break-all { word-break: break-all; }
+.whitespace-pre-wrap { white-space: pre-wrap; }
+.whitespace-nowrap { white-space: nowrap; }
+.space-y-2 > * + * { margin-top: 8px; }
+.space-y-3 > * + * { margin-top: 12px; }
+.w-16 { width: 64px; }
 
 /* v2.0.7+：首页标题「SkillHub」旁的版本号 class。
    font-size 13px + line-height 24px（与 h1 text-2xl 一致） + align-self flex-end，

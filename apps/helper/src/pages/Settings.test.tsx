@@ -31,6 +31,13 @@ vi.mock('@tauri-apps/api/core', () => ({
         };
       case 'trigger_software_scan':
         return [];
+      case 'get_session_info':
+        // 游客态：验证「Web 账号绑定」小节展示游客 50 次/天限制
+        return { has_token: false, user_id: null, user_email: null, bound_at: null };
+      case 'prune_local_usage':
+        return 0;
+      case 'pick_export_path':
+        return 'C:\\Users\\tester\\Downloads\\skillhub-usage.csv';
       default:
         return null;
     }
@@ -43,11 +50,13 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 
 // ==== Settings 必须在 mock 之后 import ====
 import Settings from './Settings';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 describe('Settings — F20 hash 监听自动展开 Key 编辑面板', () => {
   // 每个 it 前后重置 hash，避免全局 window.location 跨测试污染
   beforeEach(() => {
     window.location.hash = '';
+    vi.mocked(openUrl).mockClear();
   });
   afterEach(() => {
     window.location.hash = '';
@@ -74,5 +83,16 @@ describe('Settings — F20 hash 监听自动展开 Key 编辑面板', () => {
     });
     // 编辑表单的「Test / 保存 Key」不应出现
     expect(screen.queryByRole('button', { name: 'Test' })).not.toBeInTheDocument();
+  });
+
+  it('Web 账号绑定小节：游客显示 50 次/天限制，按钮走 openUrl 白名单域名', async () => {
+    render(<Settings installedSkills={[]} />);
+    await waitFor(() => {
+      expect(screen.getByText(/Web 账号绑定/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/每天最多 50 次 LLM 调用/)).toBeInTheDocument();
+    const btn = screen.getByRole('button', { name: '去 Web 端绑定账号' });
+    btn.click();
+    expect(openUrl).toHaveBeenCalledWith('https://skillhub.proclaw.cc/settings');
   });
 });

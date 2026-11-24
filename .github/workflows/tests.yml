@@ -47,6 +47,9 @@ jobs:
           NEXTAUTH_SECRET: test-secret
           NEXTAUTH_URL: http://localhost:3000
 
+      - name: Run helper frontend tests
+        run: pnpm --filter @skillhub/helper run test
+
   e2e-tests:
     runs-on: ubuntu-latest
     # v2.0.7: build workspace packages 已修复（search-sdk axios + .mjs exports 修复后 turbo build --filter=@skillhub/web 过），

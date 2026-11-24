@@ -14,12 +14,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { PackageOpen, Trash2 } from 'lucide-react';
 import ProviderPriceBadge from '../components/ProviderPriceBadge';
 
+/// 与 App.tsx / Home / Explore 保持一致的后端契约类型（App 统一 invoke 后注入）。
 interface InstalledSkill {
   slug: string;
   name: string;
   software: string;
-  installedAt: Date;
-  version?: string;
+  installed_at_ms: number;
 }
 
 interface UsageByKey {
@@ -34,17 +34,49 @@ interface UsageSummary {
   by_skill: UsageByKey[];
 }
 
-export default function MySkills() {
-  const [installed, setInstalled] = useState<InstalledSkill[]>([]);
+/// M4 修复：ProviderPriceBadge 的 providerId/model 不再硬编码 deepseek。
+/// 启动时拉一次 active provider，从 get_provider_keys_status 拿当前激活 provider id，
+/// model 用本机 seed-skills 标准对应表兑底（A 轮未实现云端取 model，仅用本地约定）。
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  deepseek: 'deepseek-chat',
+  openai: 'gpt-4o-mini',
+  glm: 'glm-4-flash',
+  custom: '',
+};
+
+export interface MySkillsProps {
+  /// 已装技能（App 顶层拉取，安装完成自动刷新）
+  installedSkills?: InstalledSkill[];
+}
+
+export default function MySkills({ installedSkills = [] }: MySkillsProps = {}) {
+  // 本地 state 用于「卸载后立即从列表移除」；props 变化时（安装完成 / Cmd+R）自动同步。
+  const [installed, setInstalled] = useState<InstalledSkill[]>(installedSkills);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [activeProvider, setActiveProvider] = useState<{ id: string; model: string }>({
+    id: 'deepseek',
+    model: 'deepseek-chat',
+  });
+
+  // props（App 拉取的权威列表）变化时同步到本地，安装完成 / Cmd+R 即时反映
+  useEffect(() => {
+    setInstalled(installedSkills);
+  }, [installedSkills]);
 
   useEffect(() => {
     void (async () => {
-      const list = await invoke<InstalledSkill[]>('get_installed_skills').catch(() => []);
-      setInstalled(list);
       const sum = await invoke<UsageSummary>('get_local_usage_summary', { range: '7d' }).catch(() => null);
       if (sum) setUsage(sum);
+      try {
+        const status = await invoke<{ active: string; providers: Record<string, boolean> }>(
+          'get_provider_keys_status',
+        );
+        const id = status.active || 'deepseek';
+        setActiveProvider({ id, model: PROVIDER_DEFAULT_MODEL[id] ?? '' });
+      } catch {
+        /* ignore：保持 deepseek 默认 */
+      }
     })();
   }, []);
 
@@ -100,9 +132,9 @@ export default function MySkills() {
                   <div>
                     <div className="text-[14px] font-semibold text-primary">{s.name}</div>
                     <code className="text-[11px] font-mono text-muted">{s.slug}</code>
-                    {s.version && (
-                      <span className="text-[11px] text-muted ml-2">v{s.version}</span>
-                    )}
+                    <span className="text-[11px] text-muted ml-2">
+                      {new Date(s.installed_at_ms).toLocaleDateString('zh-CN')} 安装
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -140,7 +172,7 @@ export default function MySkills() {
                   </div>
                 </div>
                 {u && u.calls > 0 && (
-                  <ProviderPriceBadge providerId="deepseek" model="deepseek-chat" />
+                  <ProviderPriceBadge providerId={activeProvider.id} model={activeProvider.model} />
                 )}
               </div>
             );

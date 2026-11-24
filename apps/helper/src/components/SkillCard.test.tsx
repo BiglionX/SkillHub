@@ -109,7 +109,9 @@ describe('SkillCard — F20 拦截逻辑', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('未配 Key + category undefined：按 C 类兜底拦截', async () => {
+  it('未配 Key + category undefined：按 A 类兜底（不拦截）', async () => {
+    // M11 修复：category undefined 兜底由 'C' 改为 'A'，避免 seed-skills.json
+    // 本地预置的无 category 字段 Skill 被误弹 modal。Web API 显式返回 category='C' 才严格拦截。
     const user = userEvent.setup();
     const onInstall = vi.fn();
     render(
@@ -121,8 +123,8 @@ describe('SkillCard — F20 拦截逻辑', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: /安装/ }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(onInstall).not.toHaveBeenCalled();
+    expect(onInstall).toHaveBeenCalledWith('test-skill');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('Dialog 打开时按 Esc 关闭', async () => {

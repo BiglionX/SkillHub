@@ -77,6 +77,29 @@ jobs:
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
 
+      # 投产修复：桌面端测试纳入 CI（此前 helper 前端 12 个 vitest + Rust 单测从未进 CI）
+      - name: Run helper frontend tests
+        run: pnpm --filter @skillhub/helper run test
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/helper/src-tauri
+
+      - name: Install Tauri system deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Normalize helper version for Cargo
+        run: node scripts/normalize-tauri-version.mjs
+
+      - name: Run helper Rust tests
+        run: cargo test --manifest-path apps/helper/src-tauri/Cargo.toml --lib
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

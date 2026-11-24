@@ -108,3 +108,20 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      # 投产修复：未签名包的完整性验证手段——为每个安装包生成 SHA-256 校验和。
+      # 用户在 SmartScreen / Gatekeeper 放行后可用 `sha256sum -c SHA256SUMS.txt`
+      # （Windows: `certutil -hashfile <file> SHA256`）核对下载是否被篡改。
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd apps/helper/src-tauri/target/release/bundle
+          find . -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' \) -print0 \
+            | xargs -0 -r sha256sum > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/helper/src-tauri/target/release/bundle/SHA256SUMS.txt
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}

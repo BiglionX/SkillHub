@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Home Tab — NLU 主页（M4 · t07）
  *
  * 设计：
@@ -8,17 +8,19 @@
  * - LLM 调通后结果显示在对话框下方
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import NluSearchBox from '../components/NluSearchBox';
 import RecommendedGroupList from '../components/RecommendedGroupList';
 import type { LlmChatOk } from '../lib/LlmGateway';
 import seedSkillsData from '../../resources/seed-skills.json';
 
+/// 与 App.tsx 后端契约一致：已装技能由 App 统一 invoke('get_installed_skills') 后注入。
 interface InstalledSkill {
   slug: string;
   name: string;
   software: string;
+  installed_at_ms: number;
 }
 
 /// M4：推荐 Skill 走 RecommendedGroupList（按软件分组 + 可折叠列表）。
@@ -100,12 +102,18 @@ export interface HomeProps {
   hasKey?: boolean;
   /// F20：用户在 SkillCard Dialog 点 [现在配] 时回调
   onNeedKey?: () => void;
+  /// 已装技能（App 顶层拉取，安装完成自动刷新）
+  installedSkills?: InstalledSkill[];
 }
 
-export default function Home({ version, hasKey: _hasKey, onNeedKey: _onNeedKey }: HomeProps = { version: '2.0.7' }) {
+export default function Home({
+  version,
+  hasKey: _hasKey,
+  onNeedKey,
+  installedSkills = [],
+}: HomeProps = { version: '2.0.7' }) {
   const [detectedSoftware, setDetectedSoftware] = useState<string[]>([]);
   const [recommended, setRecommended] = useState<RecommendedSkill[]>([]);
-  const [installedSlugs, setInstalledSlugs] = useState<Set<string>>(new Set());
   const [lastResult, setLastResult] = useState<{ ok: LlmChatOk; q: string } | null>(null);
   const [recentSkills, setRecentSkills] = useState<{ key: string; calls: number }[]>([]);
   /// v2.0.7+：推荐列表来源状态机（三态，不再二态）。
@@ -115,6 +123,12 @@ export default function Home({ version, hasKey: _hasKey, onNeedKey: _onNeedKey }
   const [recommendState, setRecommendState] = useState<
     'success' | 'empty' | 'failed'
   >('failed');
+
+  /// 已装 slug 集合由 App 注入的 props 派生；安装完成后 App 重新拉取 → 这里即时更新。
+  const installedSlugs = useMemo(
+    () => new Set(installedSkills.map((s) => s.slug)),
+    [installedSkills],
+  );
 
   useEffect(() => {
     void (async () => {
@@ -131,9 +145,7 @@ export default function Home({ version, hasKey: _hasKey, onNeedKey: _onNeedKey }
         sw = [];
       }
       setDetectedSoftware(sw.map((s) => s.software_tag));
-      // 已装 Skill（用 .catch 兑底：仅在 Tab 启动期获取本机状态）
-      const installed = await invoke<InstalledSkill[]>('get_installed_skills').catch(() => []);
-      setInstalledSlugs(new Set(installed.map((s) => s.slug)));
+      // 已装 Skill 由 App 顶层统一拉取并通过 props 注入，本页不再 invoke 不存在的命令。
 
       // v2.0.7+：推荐 Skill 三路状态机。
       // 1. scan 成功 + sw 非空 → 调 get_recommended_for_local_software 拉对应软件推荐
@@ -238,6 +250,7 @@ export default function Home({ version, hasKey: _hasKey, onNeedKey: _onNeedKey }
           skills={recommended}
           systemPrompt={DEFAULT_SYSTEM_PROMPT}
           onResult={(ok, q) => setLastResult({ ok, q })}
+          onNavigateSettings={onNeedKey ? () => onNeedKey() : undefined}
         />
 
         {lastResult && (
@@ -294,11 +307,23 @@ export default function Home({ version, hasKey: _hasKey, onNeedKey: _onNeedKey }
               <RecommendedGroupList
                 skills={recommended.slice(0, 24)}
                 installed={installedSlugs}
-                onInstall={(slug) =>
-                  invoke('install_skill', { slug, skill: recommended.find((r) => r.slug === slug) }).catch(
-                    () => {},
-                  )
-                }
+                onInstall={(slug) => {
+                  // H4 修复：走 window.__skillhubUserInstallSkill，保证 jobs 状态机
+                  // （已装列表持久化 + InstallJobsStack 进度 toast）统一收口。
+                  const skill = recommended.find((r) => r.slug === slug);
+                  const fn = (window as unknown as {
+                    __skillhubUserInstallSkill?: (
+                      slug: string,
+                      skill: { name?: string; software?: string | string[]; version?: string },
+                    ) => Promise<void>;
+                  }).__skillhubUserInstallSkill;
+                  if (fn) {
+                    void fn(slug, {
+                      name: skill?.name,
+                      software: skill?.software ?? skill?.tags?.[0],
+                    });
+                  }
+                }}
               />
             )}
           </section>

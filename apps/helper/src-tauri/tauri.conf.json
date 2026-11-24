@@ -26,7 +26,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://tauri.localhost https://skillhub.proclaw.cc; font-src 'self' data:; object-src 'none'",
+      "devCsp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost http://tauri.localhost http://localhost:1420 ws://localhost:1420 https://skillhub.proclaw.cc; font-src 'self' data:; object-src 'none'"
     },
     "trayIcon": {
       "id": "main-tray",

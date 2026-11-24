@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { llmGateway, type LlmChatOk } from '../lib/LlmGateway';
 
 export interface Skill {
@@ -51,19 +52,101 @@ export interface NluSearchBoxProps {
   systemPrompt: string;
   /// LLM 调通后回调
   onResult: (ok: LlmChatOk, userMessage: string) => void;
+  /// M5 §6.2：游客用满次数时引导用户去 Settings Tab 配 Key 用。
+  onNavigateSettings?: () => void;
 }
 
 const DEBOUNCE_MS = 400;
+
+/**
+ * F22 修复：从云端 ProviderPricing 接口拉单价，本地缓存 1 小时（同 ProviderPriceBadge）。
+ * 拿到 active provider 的 input/output 单价后算 cost，回传给 Rust。
+ * 调用者：runChat 成功后 fire-and-forget（不阻塞主流程）。
+ */
+const PRICING_API_BASE =
+  (typeof window !== 'undefined' &&
+    (window as unknown as { __SKILLHUB_API_BASE__?: string }).__SKILLHUB_API_BASE__) ||
+  'https://skillhub.proclaw.cc';
+
+let pricingCache: { payload: Record<string, { inputPrice: number; outputPrice: number }>; fetchedAt: number } | null = null;
+const PRICING_CACHE_TTL = 60 * 60 * 1000;
+
+interface ActiveProviderInfo {
+  id: string;
+  model: string;
+}
+
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  deepseek: 'deepseek-chat',
+  openai: 'gpt-4o-mini',
+  glm: 'glm-4-flash',
+  custom: '',
+};
+
+async function fetchActiveProvider(): Promise<ActiveProviderInfo | null> {
+  try {
+    const status = await invoke<{ active: string }>('get_provider_keys_status');
+    const id = status.active || 'deepseek';
+    return { id, model: PROVIDER_DEFAULT_MODEL[id] ?? '' };
+  } catch {
+    return null;
+  }
+}
+
+async function getPricingMap(): Promise<Record<string, { inputPrice: number; outputPrice: number }> | null> {
+  if (pricingCache && Date.now() - pricingCache.fetchedAt < PRICING_CACHE_TTL) {
+    return pricingCache.payload;
+  }
+  try {
+    const resp = await fetch(`${PRICING_API_BASE}/api/v2/provider-pricing`);
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as { prices: Record<string, { inputPrice: number; outputPrice: number }> };
+    pricingCache = { payload: data.prices ?? {}, fetchedAt: Date.now() };
+    return pricingCache.payload;
+  } catch {
+    return null;
+  }
+}
+
+async function updateCostInBackground(recordId: string, tokensIn: number, tokensOut: number) {
+  const provider = await fetchActiveProvider();
+  if (!provider || !provider.model) return;
+  const pricing = await getPricingMap();
+  if (!pricing) return;
+  const entry = pricing[`${provider.id}:${provider.model}`];
+  if (!entry) return;
+  // ProviderPricing 单价是 per 1M tokens；tokensIn/Out 是绝对值
+  const cost =
+    (tokensIn / 1_000_000) * entry.inputPrice + (tokensOut / 1_000_000) * entry.outputPrice;
+  try {
+    await invoke('update_usage_cost', { clientRecordId: recordId, cost });
+  } catch {
+    /* 回填失败不影响主流程 */
+  }
+}
 
 export default function NluSearchBox({
   detectedSoftware,
   systemPrompt,
   onResult,
+  onNavigateSettings,
 }: NluSearchBoxProps) {
   const [software, setSoftware] = useState<string>('');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // M5 §6.2：记录错误的 reason，让 error 区域能为 guest_over_limit 显示 CTA。
+  const [errorKind, setErrorKind] = useState<
+    | 'guest_over_limit'
+    | 'helper_no_key'
+    | 'provider_error'
+    | 'helper_unreachable'
+    | 'helper_timeout'
+    | 'helper_no_port'
+    | 'invalid_input'
+    | 'unknown'
+    | null
+  >(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // 自动聚焦
@@ -80,8 +163,18 @@ export default function NluSearchBox({
 
   const runChat = async (text: string) => {
     if (!text.trim() || busy) return;
+    // H1 修复：助手尚未注入端口时（启动首屏）禁止跑 chat，避免 race 时 400ms 后
+    // 自动提交一个必然失败的请求，错误消息挂屏上。
+    const port = (window as unknown as { __SKILLHUB_HELPER_PORT__?: number })
+      .__SKILLHUB_HELPER_PORT__;
+    if (typeof port !== 'number') {
+      setError('助手正在启动，请稍候…');
+      setErrorKind('helper_no_port');
+      return;
+    }
     setBusy(true);
     setError(null);
+    setErrorKind(null);
     const result = await llmGateway.chat({
       systemPrompt,
       userMessage: text,
@@ -92,34 +185,26 @@ export default function NluSearchBox({
     setBusy(false);
     if (!result.ok) {
       setError(result.message);
+      setErrorKind(result.reason);
       return;
     }
-    // 双保险：客户端再写一条 record_usage（Rust 端已经在 /llm/chat 里写过一条，
-    // 这里通过 clientRecordId 幂等去重不会产生重复）
-    try {
-      await invoke('record_usage', {
-        rec: {
-          client_record_id: result.recordId,
-          created_at_ms: Date.now(),
-          skill_slug: software.trim() ? software.trim().toLowerCase() : 'general',
-          provider_id: 'unknown',
-          model: 'unknown',
-          tokens_in: result.tokensIn ?? 0,
-          tokens_out: result.tokensOut ?? 0,
-          duration_ms: result.durationMs ?? 0,
-          cost_estimate: null,
-          source: 'LOCAL_DESKTOP',
-          session_kind: 'user',
-          session_id: null,
-        },
-      });
-    } catch {
-      /* 记账失败不影响主流程 */
+    // L5 修复：Rust 端 /llm/chat 内部已 record 一条完整记录（provider/model 都对）。
+    // 前端再调 record_usage 会用 provider='unknown' / model='unknown' 试图 INSERT OR IGNORE
+    // —— IGNORE 命中不会更新 cost 字段，但**两次 invoke 浪费时间**且代码误导。
+    // 已删除二次 record_usage 调用。
+
+    // F22 修复：按 ProviderPricing 单价算 cost，回传给 Rust 更新 SQLite。
+    // Rust 端 cost 字段之前永远是 None（前端没回填）→ 用量看板"成本"卡永远是 ¥0。
+    // 用 ProviderPriceBadge 的 fetch 缓存避免重复请求。
+    if (result.recordId && result.tokensIn != null && result.tokensOut != null) {
+      void updateCostInBackground(result.recordId, result.tokensIn, result.tokensOut);
     }
     onResult(result, text);
   };
 
-  // 400ms 防抖自动提交（仅对长文本）
+  // 400ms 防抖自动提交（仅对长文本）。
+  // M1 修复：去掉 eslint-disable；runChat 是当前组件作用域的稳定函数，
+  // 把 mergedDetected 与 software 作为 deps，保证切换「热门软件」后下一次提交会带上新值。
   useEffect(() => {
     if (!value.trim()) return;
     const t = setTimeout(() => {
@@ -129,7 +214,7 @@ export default function NluSearchBox({
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, software, mergedDetected]);
 
   return (
     <div className="glass-card p-5">
@@ -194,6 +279,25 @@ export default function NluSearchBox({
       {error && (
         <div role="alert" className="glass-hint-danger mt-3 text-[11px]">
           {error}
+          {/* M5 §6.2：游客用满 50 次/天后给两个 CTA：去 Web 端绑定账号 / 去设置配 Key */}
+          {errorKind === 'guest_over_limit' && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="glow-btn-ghost text-[11px]"
+                onClick={() => void openUrl('https://skillhub.proclaw.cc/auth/bind-guest')}
+              >
+                绑定 Web 账号解锁 →
+              </button>
+              <button
+                type="button"
+                className="glow-btn-ghost text-[11px]"
+                onClick={() => onNavigateSettings?.()}
+              >
+                配 API Key 解锁 →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
