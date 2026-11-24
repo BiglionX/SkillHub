@@ -157,7 +157,7 @@ export default async function Home() {
               </svg>
             </Link>
           </div>
-          <p className="mt-6 text-sm text-slate-500">支持 Windows · macOS · Linux　|　安装包 ≤ 8MB　|　无需配置运行环境</p>
+          <p className="mt-6 text-sm text-slate-500">支持 Windows · macOS · Linux | 安装包 ≤ 8MB | 无需配置运行环境</p>
         </div>
       </section>
 
