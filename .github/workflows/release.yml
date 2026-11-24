@@ -1,0 +1,105 @@
+name: Release Desktop Helper
+
+# 桌面助手安装包自动发布。
+# 触发：推送 v* tag（例如 v2.0.07）。基于 tag 指向的 commit 干净 checkout 构建，
+# 不携带开发者本地未提交改动。
+#
+# 发布策略：开源软件，不配置 Apple / Tauri 签名 Secrets，产物为未签名包。
+# - macOS 产物为未签名 .dmg，用户需在「系统设置 → 隐私与安全性」中手动允许
+# - Windows 产物无代码签名，首次安装可能触发 SmartScreen 提示
+# - 后续如需签名，在仓库 Settings → Secrets 配置 APPLE_CERTIFICATE /
+#   APPLE_CERTIFICATE_PASSWORD / TAURI_SIGNING_PRIVATE_KEY 等变量即可（action 会自动启用）
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要构建的 tag（例如 v2.0.07）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ contains(matrix.args, 'aarch64-apple-darwin') && 'aarch64-apple-darwin' || (contains(matrix.args, 'x86_64-apple-darwin') && 'x86_64-apple-darwin' || '') }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            libayatana-appindicator3-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/helper/src-tauri
+          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          releaseName: 'SkillHub Helper __VERSION__'
+          releaseBody: |
+            SkillHub 桌面助手（开源，未签名版本）。
+
+            ## 下载
+            - Windows：`.msi` 或 `.nsis` 安装包（任选其一）
+            - macOS：`.dmg`（Apple Silicon 选 aarch64，Intel 选 x86_64）
+            - Linux：`.AppImage`（免安装）或 `.deb`
+
+            ## 未签名说明
+            本项目为开源软件，未购买代码签名证书：
+            - Windows 首次安装可能弹出 SmartScreen，选择「更多信息 → 仍要运行」
+            - macOS 安装后如提示「无法打开」，请在「系统设置 → 隐私与安全性」中允许
+
+            源码与校验方式见仓库 README。
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
