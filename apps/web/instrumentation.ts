@@ -13,6 +13,7 @@ export async function register() {
   // 只在 Node.js 运行时加载 Node-only 依赖并启动调度器；Edge 运行时直接跳过。
   if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.DISABLE_SCHEDULER !== 'true') {
     const { startScheduler } = await import('./lib/services/TaskScheduler');
+    const { startDatabaseHeartbeat } = await import('./lib/db-health');
 
     console.log('\n🚀 ========================================');
     console.log('🚀 Starting SkillHub Task Scheduler...');
@@ -31,6 +32,10 @@ export async function register() {
       try {
         // 额外延迟,确保 Prisma 和其他服务完全初始化
         await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 保活心跳：每 5 分钟 SELECT 1，避免 Neon 空闲休眠触发冷启动。
+        // 在长驻 Node 进程（standalone/Docker）中有效；serverless 下实例回收后自然停止。
+        startDatabaseHeartbeat();
 
         console.log('🔄 Initializing Task Scheduler...');
         await startScheduler();

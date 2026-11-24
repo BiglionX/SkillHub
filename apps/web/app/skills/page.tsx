@@ -4,13 +4,19 @@ import PublicSkillsClient from './PublicSkillsClient';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://skillhub.proclaw.cc';
+
 export const metadata: Metadata = {
   title: 'Skill仓库',
   description: '浏览和发现优秀的 AI Agent 技能，探索企业级开源 AI Agent 技能注册中心',
+  // v2.1：首页降级为下载助手后，/skills 是原 NLU 搜索入口的规范地址，SEO 权重集中到此
+  alternates: {
+    canonical: `${baseUrl}/skills`,
+  },
   openGraph: {
     title: 'Skill仓库 - SkillHub',
     description: '浏览和发现优秀的 AI Agent 技能，探索企业级开源 AI Agent 技能注册中心',
-    url: '/skills',
+    url: `${baseUrl}/skills`,
   },
   twitter: {
     title: 'Skill仓库 - SkillHub',

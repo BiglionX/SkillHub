@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useSession } from '@/components/providers/SessionProvider';
@@ -15,6 +15,7 @@ import ChatIntentInput from '@/components/chat-intent-input'; // v3 M1: 智能�
 import OnboardingHelperPrompt from '@/components/onboarding-helper-prompt'; // v3 M1: Onboarding 引导
 import SoftwareIconBar from '@/components/software-icon-bar'; // v3 M1: 软件过滤栏
 import SoftwarePickerDialog from '@/components/software-picker-dialog'; // v3 M1: 已装软件多选
+import DatabaseReconnecting from '@/components/ui/DatabaseReconnecting';
 
 interface SearchParams {
   q?: string;
@@ -65,6 +66,8 @@ interface SkillsData {
   total: number;
   categoryStats: Record<string, unknown>[];
   databaseError: boolean;
+  // 后端重连探测结果：true = 连接已恢复可立即重试；false = 仍在唤醒需等待倒计时
+  recovered?: boolean;
 }
 
 const categoryNames: Record<string, string> = {
@@ -168,44 +171,6 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
     useGlobalSearch, useSemanticSearch,
   ]);
 
-  // Loading skeleton
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
-          <div className="flex flex-col items-center justify-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-            <p className="text-gray-500 text-lg">正在加载技能数据...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (data?.databaseError) {
-    return (
-      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
-          <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 max-w-lg mx-auto p-12">
-            <div className="w-20 h-20 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
-              <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">数据库连接中</h3>
-            <p className="text-gray-600 mb-6">数据库正在唤醒，首次加载可能需要几秒钟</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-linear-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
-            >
-              刷新重试
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const { skills = [], total = 0, categoryStats = [] } = data || {};
 
@@ -326,6 +291,24 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
         </div>
       </nav>
 
+      {loading ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <p className="text-gray-500 text-lg">正在加载技能数据...</p>
+          </div>
+        </div>
+      ) : data?.databaseError ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 max-w-lg mx-auto p-12">
+            <DatabaseReconnecting
+              skipTimer={data.recovered}
+              onRetry={fetchData}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-linear-to-r from-blue-600 via-indigo-700 to-purple-800 text-white">
         {/* 背景：科技主题图片（叠加 blend 增强质感） */}
@@ -595,6 +578,9 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
           </main>
         </div>
       </div>
+
+        </>
+      )}
 
       {/* 页脚 */}
       <footer className="bg-gray-900 text-gray-300 mt-20">

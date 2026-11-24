@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDatabaseConnection } from '@/lib/db-health';
 
 // 强制动态渲染，因为使用了 request.url
 export const dynamic = 'force-dynamic';
@@ -184,11 +185,38 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to fetch skills data:', error);
+
+    // Neon serverless 空闲后会休眠，连接类错误说明可能正在唤醒。
+    // 用一次轻量 SELECT 1 探测是否已恢复：成功则前端可跳过倒计时立即重试，
+    // 失败则前端展示倒计时等待唤醒。
+    // 注意：首个查询的 connect_timeout 可能已耗时 8s，这里用 2s 硬上限封顶探测，
+    // 避免叠加成 16s 触发 Vercel 的 10s 函数超时。
+    const message = error instanceof Error ? error.message : String(error);
+    const isConnectionError =
+      message.includes('connection timed out') ||
+      message.includes('terminating connection') ||
+      message.includes('Connection terminated unexpectedly') ||
+      message.includes('connection') ||
+      message.includes('timeout');
+
+    let recovered = false;
+    if (isConnectionError) {
+      try {
+        recovered = await Promise.race([
+          ensureDatabaseConnection(1, 0),
+          new Promise<boolean>(resolve => setTimeout(() => resolve(false), 2000)),
+        ]);
+      } catch {
+        // 非连接类错误：ensureDatabaseConnection 会 throw，此处保持 recovered=false
+      }
+    }
+
     return Response.json({
       skills: [],
       total: 0,
       categoryStats: [],
       databaseError: true,
+      recovered,
     });
   }
 }
