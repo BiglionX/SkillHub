@@ -74,13 +74,11 @@ jobs:
             patchelf \
             xdg-utils
 
-      # Cargo 不接受 semver 前导零（2.0.07 会报 "invalid leading zero in patch version"）。
-      # 仓库遵循 Z 两位补零规范，发布构建时在此归一化为合法 semver（2.0.7），不改动源码提交。
-      - name: Normalize Cargo version for semver
-        shell: bash
-        run: |
-          sed -i -E 's/^version = "([0-9]+)\.([0-9]+)\.0+([0-9]+)"$/version = "\1.\2.\3"/' apps/helper/src-tauri/Cargo.toml
-          grep '^version = ' apps/helper/src-tauri/Cargo.toml | head -1
+      # Cargo 与 Tauri CLI 都不接受 semver 前导零（2.0.07 会报
+      # "invalid leading zero in patch version"）。仓库遵循 Z 两位补零规范，
+      # 发布构建时由该脚本归一化为合法 semver（2.0.7），不改动源码提交。
+      - name: Normalize version for semver
+        run: node scripts/normalize-tauri-version.mjs
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
