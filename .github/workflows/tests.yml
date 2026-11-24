@@ -94,6 +94,8 @@ jobs:
         uses: cypress-io/github-action@v7
         with:
           working-directory: apps/web
+          # 根 job 已 pnpm install（lockfile 在根目录），避免 action 在 apps/web 下重复找 lockfile
+          install: false
           start: pnpm dev
           wait-on: 'http://localhost:3000/api/v2/healthcheck'
           wait-on-timeout: 180

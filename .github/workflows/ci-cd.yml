@@ -174,6 +174,8 @@ jobs:
         uses: cypress-io/github-action@v7
         with:
           working-directory: apps/web
+          # 根 job 已 pnpm install（lockfile 在根目录），避免 action 在 apps/web 下重复找 lockfile
+          install: false
           start: pnpm start
           wait-on: 'http://localhost:3000'
           wait-on-timeout: 120
