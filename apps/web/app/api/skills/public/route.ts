@@ -186,11 +186,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Failed to fetch skills data:', error);
 
-    // Neon serverless 空闲后会休眠，连接类错误说明可能正在唤醒。
-    // 用一次轻量 SELECT 1 探测是否已恢复：成功则前端可跳过倒计时立即重试，
-    // 失败则前端展示倒计时等待唤醒。
-    // 注意：首个查询的 connect_timeout 可能已耗时 8s，这里用 2s 硬上限封顶探测，
-    // 避免叠加成 16s 触发 Vercel 的 10s 函数超时。
     const message = error instanceof Error ? error.message : String(error);
     const isConnectionError =
       message.includes('connection timed out') ||
@@ -199,24 +194,47 @@ export async function GET(request: NextRequest) {
       message.includes('connection') ||
       message.includes('timeout');
 
-    let recovered = false;
     if (isConnectionError) {
+      // Neon serverless 空闲后会休眠，连接类错误说明可能正在唤醒。
+      // 用一次轻量 SELECT 1 探测是否已恢复：成功则前端可跳过倒计时立即重试，
+      // 失败则前端展示倒计时等待唤醒。
+      // 注意：首个查询的 connect_timeout 可能已耗时 8s，这里用 2s 硬上限封顶探测，
+      // 避免叠加成 16s 触发 Vercel 的 10s 函数超时。
+      let recovered = false;
       try {
         recovered = await Promise.race([
           ensureDatabaseConnection(1, 0),
           new Promise<boolean>(resolve => setTimeout(() => resolve(false), 2000)),
         ]);
       } catch {
-        // 非连接类错误：ensureDatabaseConnection 会 throw，此处保持 recovered=false
+        // 探测本身失败时保持 recovered=false
       }
+
+      return Response.json({
+        skills: [],
+        total: 0,
+        categoryStats: [],
+        databaseError: true,
+        recovered,
+      });
     }
+
+    // 表结构未迁移、权限错误等不能伪装成“数据库正在唤醒”，否则前端重试永远无效。
+    const isSchemaError =
+      /column .* does not exist|relation .* does not exist|table .* does not exist|unknown column|permission denied/i.test(message);
 
     return Response.json({
       skills: [],
       total: 0,
       categoryStats: [],
-      databaseError: true,
-      recovered,
-    });
+      databaseError: false,
+      serviceError: {
+        code: isSchemaError ? 'DATABASE_SCHEMA_ERROR' : 'INTERNAL_ERROR',
+        message: isSchemaError
+          ? '数据库结构尚未更新，技能列表暂时不可用。'
+          : '服务暂时不可用，请稍后再试。',
+        detail: process.env.NODE_ENV === 'production' ? undefined : message,
+      },
+    }, { status: 500 });
   }
 }

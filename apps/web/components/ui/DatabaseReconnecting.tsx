@@ -62,7 +62,9 @@ export default function DatabaseReconnecting({ onRetry, skipTimer }: { onRetry?:
       <p className="text-gray-500 mb-8 text-center max-w-sm">
         {countdown > 0
           ? `数据库正在唤醒，预计 ${countdown} 秒完成...`
-          : '数据库已准备就绪，点击下方按钮重试'}
+          : skipTimer
+            ? '数据库已准备就绪，点击下方按钮重试'
+            : '数据库仍在唤醒中，可点击下方按钮重试'}
       </p>
 
       {/* 进度条 */}

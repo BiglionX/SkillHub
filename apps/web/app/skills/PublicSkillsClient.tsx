@@ -68,6 +68,12 @@ interface SkillsData {
   databaseError: boolean;
   // 后端重连探测结果：true = 连接已恢复可立即重试；false = 仍在唤醒需等待倒计时
   recovered?: boolean;
+  // 非连接类错误（如表结构未迁移）：不能用“正在连接数据库”掩盖
+  serviceError?: {
+    code: string;
+    message: string;
+    detail?: string;
+  };
 }
 
 const categoryNames: Record<string, string> = {
@@ -296,6 +302,30 @@ export default function PublicSkillsClient({ searchParams }: { searchParams: Sea
           <div className="flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
             <p className="text-gray-500 text-lg">正在加载技能数据...</p>
+          </div>
+        </div>
+      ) : data?.serviceError ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 max-w-lg mx-auto p-12">
+            <div className="w-16 h-16 mx-auto mb-6 bg-amber-50 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">服务暂时不可用</h3>
+            <p className="text-gray-500 mb-2">{data.serviceError.message}</p>
+            {data.serviceError.code === 'DATABASE_SCHEMA_ERROR' && (
+              <p className="text-sm text-gray-400 mb-6">请联系管理员完成数据库迁移后重试。</p>
+            )}
+            {data.serviceError.detail && (
+              <p className="text-xs text-gray-400 mb-6 break-all">{data.serviceError.detail}</p>
+            )}
+            <button
+              onClick={fetchData}
+              className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
+            >
+              重新加载
+            </button>
           </div>
         </div>
       ) : data?.databaseError ? (
