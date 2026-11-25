@@ -170,6 +170,11 @@ jobs:
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
 
+      # install:false 会跳过 Cypress binary 下载（npm 包本身已由根 pnpm install 安装），
+      # 因此这里显式补装 binary 到 ~/.cache/Cypress，否则 action 报 "binary is missing"
+      - name: Install Cypress binary
+        run: pnpm --filter @skillhub/web exec cypress install
+
       - name: Run E2E tests
         uses: cypress-io/github-action@v7
         with:
