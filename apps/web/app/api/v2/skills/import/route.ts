@@ -8,6 +8,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { parseSkillMd, SkillMdParseError } from '@/lib/skills/skill-md-parser';
+import { inspectQualitySignals, collectInspectableText } from '@/lib/governance/quality-signals';
 import {
   authenticateV2Request,
   v2SuccessResponse,
@@ -68,7 +69,18 @@ export async function POST(request: NextRequest) {
     // 6. 查找或创建 namespace
     const namespace = await resolveNamespace(body.namespace, auth?.userId);
 
-    // 7. 创建 Skill
+    // 7. 质量/安全信号检测（只识别客观危险模式，不做主题判断）
+    //   命中 high 级信号时禁止自动发布，转入人工审核队列。
+    const qualityReport = inspectQualitySignals(
+      collectInspectableText({
+        name: parsed.frontmatter.name,
+        description: parsed.frontmatter.description,
+        skillMdContent: parsed.raw,
+        tags: parsed.keywords,
+      }),
+    );
+
+    // 8. 创建 Skill
     const skill = await prisma.skill.create({
       data: {
         slug,
@@ -78,7 +90,7 @@ export async function POST(request: NextRequest) {
         version: '1.0.0',
         category: 'imported',
         tags: [],
-        status: body.autoPublish ? 'APPROVED' : 'DRAFT',
+        status: body.autoPublish && qualityReport.safe ? 'APPROVED' : 'DRAFT',
         isPublic: false, // 默认为私有，需要审核后才能公开
         // authorId 必填：未认证时使用系统用户（与 CrawlerService 同模式）
         authorId: auth?.userId ?? (await getOrCreateSystemUser()),

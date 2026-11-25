@@ -27,6 +27,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE, isPubliclyVisible } from '@/lib/governance/visibility';
 import type { SkillType } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -158,7 +159,7 @@ export async function getMcpServer(): Promise<Server> {
           }
 
           const where: Record<string, unknown> = {
-            isPublic: true,
+            ...PUBLIC_SKILL_WHERE,
             OR: [
               { name: { contains: query, mode: 'insensitive' } },
               { description: { contains: query, mode: 'insensitive' } },
@@ -233,13 +234,14 @@ export async function getMcpServer(): Promise<Server> {
               starCount: true,
               downloadCount: true,
               version: true,
+              status: true,
               isPublic: true,
               author: { select: { name: true } },
               namespace: { select: { name: true, slug: true } },
             },
           });
 
-          if (!skill || !skill.isPublic) {
+          if (!isPubliclyVisible(skill)) {
             return {
               content: [
                 {
@@ -257,7 +259,22 @@ export async function getMcpServer(): Promise<Server> {
                 type: 'text',
                 text: JSON.stringify(
                   {
-                    ...skill,
+                    // 剔除门禁用的 status/isPublic，保持 MCP 响应契约不变
+                    slug: skill.slug,
+                    name: skill.name,
+                    description: skill.description,
+                    readme: skill.readme,
+                    skillMdContent: skill.skillMdContent,
+                    standardName: skill.standardName,
+                    standardDescription: skill.standardDescription,
+                    agentSkillsVersion: skill.agentSkillsVersion,
+                    type: skill.type,
+                    industryTags: skill.industryTags,
+                    starCount: skill.starCount,
+                    downloadCount: skill.downloadCount,
+                    version: skill.version,
+                    author: skill.author,
+                    namespace: skill.namespace,
                     skillMdUrl: `https://skillhub.proclaw.cc/api/v2/skills/${slug}/skill.md`,
                     pageUrl: `https://skillhub.proclaw.cc/skills/${slug}`,
                   },
@@ -281,7 +298,7 @@ export async function getMcpServer(): Promise<Server> {
           }
 
           const skills = await prisma.skill.findMany({
-            where: { type: type as SkillType, isPublic: true },
+            where: { type: type as SkillType, ...PUBLIC_SKILL_WHERE },
             take: limit,
             select: {
               slug: true,
@@ -320,6 +337,20 @@ export async function getMcpServer(): Promise<Server> {
           if (!slug) {
             return {
               content: [{ type: 'text', text: 'Error: slug is required' }],
+              isError: true,
+            };
+          }
+
+          // 可见性门禁：不公开/未审核的技能不得生成安装指令
+          const installTarget = await prisma.skill.findUnique({
+            where: { slug },
+            select: { id: true, status: true, isPublic: true },
+          });
+          if (!isPubliclyVisible(installTarget)) {
+            return {
+              content: [
+                { type: 'text', text: `Skill not found or not public: ${slug}` },
+              ],
               isError: true,
             };
           }

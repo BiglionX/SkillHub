@@ -1,4 +1,7 @@
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_SQL, PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
+
+
 
 /**
  * SQL 查询返回的技能行（来自 $queryRawUnsafe）
@@ -81,8 +84,8 @@ export class SearchService {
       sortBy = 'relevance',
     } = options;
 
-    // 构建 WHERE 条件
-    const whereConditions: string[] = [];
+    // 构建 WHERE 条件（首条即统一公开可见性约束，所有搜索结果必须是已审核公开技能）
+    const whereConditions: string[] = [PUBLIC_SKILL_SQL];
     const params: (string | number | string[])[] = [];
     let paramIndex = 1;
 
@@ -232,7 +235,7 @@ export class SearchService {
       const skillNames = await prisma.$queryRaw`
         SELECT DISTINCT name
         FROM skills
-        WHERE name ILIKE ${`%${query}%`}
+        WHERE name ILIKE ${`%${query}%`} AND status = 'APPROVED' AND "isPublic" = true
         LIMIT ${limit}
       `;
       
@@ -248,7 +251,7 @@ export class SearchService {
         const categories = await prisma.$queryRaw`
           SELECT DISTINCT category
           FROM skills
-          WHERE category ILIKE ${`%${query}%`}
+          WHERE category ILIKE ${`%${query}%`} AND status = 'APPROVED' AND "isPublic" = true
           LIMIT ${limit - suggestions.length}
         `;
         
@@ -265,7 +268,7 @@ export class SearchService {
         const tags = await prisma.$queryRaw`
           SELECT DISTINCT unnest(tags) as tag
           FROM skills
-          WHERE unnest(tags) ILIKE ${`%${query}%`}
+          WHERE unnest(tags) ILIKE ${`%${query}%`} AND status = 'APPROVED' AND "isPublic" = true
           LIMIT ${limit - suggestions.length}
         `;
         
@@ -289,6 +292,7 @@ export class SearchService {
   async getPopularSearches(limit = 10): Promise<string[]> {
     // 基于最近更新的 skills 提取热门关键词
     const recentSkills = await prisma.skill.findMany({
+      where: { ...PUBLIC_SKILL_WHERE },
       take: 100,
       orderBy: { updatedAt: 'desc' },
       select: {
@@ -348,7 +352,8 @@ export class SearchService {
       pageSize = 20,
     } = filters;
 
-    const whereConditions: string[] = [];
+    // 首条即统一公开可见性约束：高级搜索同样只能命中已审核公开技能
+    const whereConditions: string[] = [PUBLIC_SKILL_SQL];
     const params: (string | number | Date | string[])[] = [];
     let paramIndex = 1;
 

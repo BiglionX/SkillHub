@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import { MetadataRoute } from 'next';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -48,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let dynamicSkillPages: MetadataRoute.Sitemap = [];
   try {
     const skills = await prisma.skill.findMany({
-      where: { status: { not: 'ARCHIVED' } },
+      where: { ...PUBLIC_SKILL_WHERE },
       select: {
         slug: true,
         updatedAt: true,

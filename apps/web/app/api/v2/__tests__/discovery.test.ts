@@ -139,6 +139,7 @@ description: Generate PDF from markdown
       standardName: 'pdf-generation',
       standardDescription: 'Generate PDF from markdown',
       agentSkillsVersion: '1.0',
+      status: 'APPROVED',
       isPublic: true,
     });
 
@@ -163,6 +164,7 @@ description: Generate PDF from markdown
       standardName: 'pdf-generation',
       standardDescription: 'Generate PDF from markdown',
       agentSkillsVersion: '1.0',
+      status: 'APPROVED',
       isPublic: true,
     });
 
@@ -226,6 +228,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   it('不存在的资源应返回 404', async () => {
     (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
+      status: 'APPROVED',
       isPublic: true,
       resources: [],
     });
@@ -243,6 +246,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   it('应返回资源元数据', async () => {
     (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
+      status: 'APPROVED',
       isPublic: true,
       resources: [
         {
@@ -279,6 +283,7 @@ describe('GET /api/v2/skills/[slug]/files/[...path]', () => {
   it('超大文件应返�?413', async () => {
     (prisma.skill.findUnique as unknown as jest.Mock).mockResolvedValue({
       id: 'skill-id',
+      status: 'APPROVED',
       isPublic: true,
       resources: [
         {

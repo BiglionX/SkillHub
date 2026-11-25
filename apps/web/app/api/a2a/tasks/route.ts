@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTaskStore } from '@/lib/a2a/task-store';
 import { CreateTaskRequestSchema } from '@/lib/a2a/schemas';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       select: { id: true, slug: true, isPublic: true, status: true },
     });
 
-    if (!skill || !skill.isPublic) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         {
           error: 'SKILL_NOT_FOUND',

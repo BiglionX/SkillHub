@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import Link from 'next/link';
@@ -68,7 +69,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { slug },
   });
 
-  if (!skill) {
+  if (!isPubliclyVisible(skill)) {
     return {
       title: 'Skill 不存在',
     };
@@ -108,6 +109,8 @@ export default async function PublicSkillDetailPage({ params }: Props) {
       id: true,
       name: true,
       slug: true,
+      status: true,
+      isPublic: true,
       description: true,
       category: true,
       subcategory: true,
@@ -148,7 +151,7 @@ export default async function PublicSkillDetailPage({ params }: Props) {
     },
   });
 
-  if (!skill) {
+  if (!isPubliclyVisible(skill)) {
     notFound();
   }
 

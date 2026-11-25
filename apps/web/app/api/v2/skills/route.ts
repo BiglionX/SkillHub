@@ -4,6 +4,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import { authenticateV2Request, v2SuccessResponse, v2ErrorResponse, unauthorizedResponse } from '@/lib/services/V2ApiAuth';
 
 /**
@@ -51,8 +52,8 @@ export async function GET(request: NextRequest) {
       where.pluginCompatible = false;
     }
 
-    // 默认只返回已批准的技能
-    where.status = 'APPROVED';
+    // 默认只返回已审核公开的技能
+    Object.assign(where, PUBLIC_SKILL_WHERE);
 
     // 查询
     const [skills, total] = await Promise.all([

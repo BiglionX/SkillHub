@@ -178,6 +178,21 @@ describe('SearchService', () => {
   });
 
   describe('search', () => {
+    it('count 与 data 查询都必须包含公开可见性约束', async () => {
+      mockQueryRawUnsafe
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([]);
+
+      await searchService.search({ query: 'anything' });
+
+      const calls = mockQueryRawUnsafe.mock.calls as unknown as Array<[string, ...unknown[]]>;
+      expect(calls).toHaveLength(2);
+      for (const [sql] of calls) {
+        expect(sql).toContain("status = 'APPROVED'");
+        expect(sql).toContain('"isPublic" = true');
+      }
+    });
+
     it('应该执行基本搜索', async () => {
       mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 10 }])
@@ -240,6 +255,21 @@ describe('SearchService', () => {
   });
 
   describe('advancedSearch', () => {
+    it('count 与 data 查询都必须包含公开可见性约束', async () => {
+      mockQueryRawUnsafe
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([]);
+
+      await searchService.advancedSearch({ query: 'anything' });
+
+      const calls = mockQueryRawUnsafe.mock.calls as unknown as Array<[string, ...unknown[]]>;
+      expect(calls).toHaveLength(2);
+      for (const [sql] of calls) {
+        expect(sql).toContain("status = 'APPROVED'");
+        expect(sql).toContain('"isPublic" = true');
+      }
+    });
+
     it('应该执行高级搜索', async () => {
       mockQueryRawUnsafe
         .mockResolvedValueOnce([{ total: 15 }])

@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
@@ -47,6 +48,7 @@ export async function GET(
       where: { slug },
       select: {
         id: true,
+        status: true,
         isPublic: true,
         resources: {
           where: { path: filePath },
@@ -55,7 +57,7 @@ export async function GET(
       },
     });
 
-    if (!skill || !skill.isPublic) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'NOT_FOUND', message: `Skill or resource not found: ${slug}/${filePath}` },
         { status: 404 },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { LlmGateway } from '@/lib/services/LlmGateway';
 
 const prisma = new PrismaClient();
@@ -38,10 +39,12 @@ export async function POST(
       name: true,
       deliveryCategory: true,
       llmConfig: true,
+      status: true,
+      isPublic: true,
     },
   });
 
-  if (!skill) {
+  if (!isPubliclyVisible(skill)) {
     return NextResponse.json({ error: 'Skill 不存在' }, { status: 404 });
   }
 

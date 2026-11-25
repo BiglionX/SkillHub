@@ -24,6 +24,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { isValidLocale, localeFallbackChain, type Locale } from '@/i18n/config';
 
 export const dynamic = 'force-dynamic';
@@ -60,11 +61,12 @@ export async function GET(
         standardDescription: true,
         skillMdContent: true,
         locale: true,
+        status: true,
         isPublic: true,
       },
     });
 
-    if (!skill || !skill.isPublic) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'NOT_FOUND', message: `Skill not found: ${slug}` },
         { status: 404 },

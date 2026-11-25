@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import { auth } from '@/lib/auth-config';
 import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from '@/lib/api-response';
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     // 计算偏移量
     const skip = (page - 1) * limit;
 
-    // 构建查询条件
+    // 构建查询条件（可见性在鉴权后统一兜底）
     const where: Record<string, unknown> = {};
 
     // 搜索条件
@@ -47,14 +48,20 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // 会话与授权判定：管理员可查看任意状态；普通用户仅限自己的技能。
+    const session = await auth();
+    const isAdmin = session?.user?.is_admin === true;
+    const viewerId = session?.user?.id;
+
+    // 是否允许放宽公开约束：管理员，或明确查询自己的技能（authorId == 自己 / 草稿箱）。
+    // 关键：查询"他人作者"永远不能放宽，否则会越权枚举他人草稿/被拒技能。
+    const isOwnQuery = Boolean(viewerId) && (authorId === viewerId || isDraft);
+    const mayRelax = isAdmin || isOwnQuery;
+
     // 状态过滤（支持多个状态，用逗号分隔）
     if (statusParam) {
       const statuses = statusParam.split(',').map(s => s.trim());
-      if (statuses.length === 1) {
-        where.status = statuses[0];
-      } else {
-        where.status = { in: statuses };
-      }
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
     }
 
     // 草稿箱模式：只显示DRAFT状态
@@ -72,13 +79,10 @@ export async function GET(request: NextRequest) {
       where.authorId = authorId;
     }
 
-    // 只返回已批准的技能（除非用户是管理员或所有者）
-    const session = await auth();
-    if (!session) {
-      where.status = 'APPROVED';
-    } else if (!statusParam && !isDraft && !authorId) {
-      // 如果未指定状态且不是查询自己的skills，默认只显示已批准的
-      where.status = 'APPROVED';
+    // 可见性兜底：只有管理员或查询自己的技能时才允许非公开状态/私有技能。
+    // 其余情况强制 PUBLIC_SKILL_WHERE，覆盖上面任何放宽参数。
+    if (!mayRelax) {
+      Object.assign(where, PUBLIC_SKILL_WHERE);
     }
 
     // 查询总数

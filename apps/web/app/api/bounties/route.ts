@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import { z } from 'zod';
 
 // 验证创建悬赏的请求体
@@ -98,7 +99,9 @@ export async function GET(request: NextRequest) {
               image: true,
             },
           },
+          // 只关联公开可见的技能，避免悬赏列表泄漏未审核/私有技能
           skill: {
+            where: { ...PUBLIC_SKILL_WHERE },
             select: {
               id: true,
               name: true,

@@ -4,6 +4,8 @@
  * POST /api/v2/skills/[slug]/vector_search/by_embedding - 使用已有向量检索
  */
 import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { knowledgeEmbeddingService } from '@/lib/services/KnowledgeEmbeddingService';
 import { v2SuccessResponse, v2ErrorResponse } from '@/lib/services/V2ApiAuth';
 
@@ -22,6 +24,15 @@ export async function POST(
 
     const topK = Math.min(Math.max(top_k || 5, 1), 50);
     const thresholdValue = threshold !== undefined ? Math.max(0, Math.min(threshold, 1)) : 0.7;
+
+    // 可见性门禁：slug 为技能 id，只有已审核公开技能才允许检索其知识库
+    const skill = await prisma.skill.findUnique({
+      where: { id: slug },
+      select: { id: true, status: true, isPublic: true },
+    });
+    if (!isPubliclyVisible(skill)) {
+      return v2ErrorResponse('技能不存在', 404);
+    }
 
     const results = await knowledgeEmbeddingService.vectorSearch(slug, query, topK, thresholdValue);
 

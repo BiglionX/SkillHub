@@ -5,6 +5,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { knowledgeService } from '@/lib/services/KnowledgeService';
 import { authenticateV2Request, v2SuccessResponse, v2ErrorResponse, unauthorizedResponse } from '@/lib/services/V2ApiAuth';
 
@@ -19,8 +20,11 @@ export async function GET(
     const versionStr = searchParams.get('version');
     const version = versionStr ? parseInt(versionStr) : undefined;
 
-    const skill = await prisma.skill.findUnique({ where: { id: slug }, select: { id: true, type: true } });
-    if (!skill) {
+    const skill = await prisma.skill.findUnique({
+      where: { id: slug },
+      select: { id: true, type: true, status: true, isPublic: true },
+    });
+    if (!isPubliclyVisible(skill)) {
       return v2ErrorResponse('技能不存在', 404);
     }
 

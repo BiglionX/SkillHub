@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { calculateTrustScore, VERIFIED_THRESHOLD, type TrustScoreResult } from '@/lib/services/TrustScoreService';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export async function GET(
         starCount: true,
         downloadCount: true,
         updatedAt: true,
+        status: true,
         isPublic: true,
         // 用户评分在 SkillComment.rating（Review 是审核记录，无 rating）
         comments: {
@@ -40,7 +42,7 @@ export async function GET(
       },
     });
 
-    if (!skill || !skill.isPublic) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'NOT_FOUND', message: `Skill not found: ${slug}` },
         { status: 404 },

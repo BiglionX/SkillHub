@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // 1 小时缓存
@@ -26,11 +27,12 @@ export async function GET(
         standardName: true,
         standardDescription: true,
         agentSkillsVersion: true,
+        status: true,
         isPublic: true,
       },
     });
 
-    if (!skill || !skill.isPublic) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'NOT_FOUND', message: `Skill not found: ${slug}` },
         { status: 404 },

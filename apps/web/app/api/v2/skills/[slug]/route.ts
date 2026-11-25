@@ -4,6 +4,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { v2SuccessResponse, v2ErrorResponse } from '@/lib/services/V2ApiAuth';
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +27,7 @@ export async function GET(
       },
     });
 
-    if (!skill) {
+    if (!isPubliclyVisible(skill)) {
       return v2ErrorResponse('技能不存在', 404);
     }
 
@@ -59,14 +60,29 @@ export async function GET(
       const items = await prisma.skillPackItem.findMany({
         where: { packId: skill.id },
         include: {
-          childSkill: { select: { id: true, name: true, slug: true, description: true } },
+          childSkill: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              description: true,
+              status: true,
+              isPublic: true,
+            },
+          },
         },
         orderBy: { sortOrder: 'asc' },
       });
-      childSkills = items.map((item) => ({
-        ...item.childSkill,
-        sort_order: item.sortOrder,
-      }));
+      // 只展示公开可见的子技能，避免 pack 泄漏私有/被拒子技能
+      childSkills = items
+        .filter((item) => isPubliclyVisible(item.childSkill))
+        .map((item) => ({
+          id: item.childSkill.id,
+          name: item.childSkill.name,
+          slug: item.childSkill.slug,
+          description: item.childSkill.description,
+          sort_order: item.sortOrder,
+        }));
     }
 
     const data: Record<string, unknown> = {

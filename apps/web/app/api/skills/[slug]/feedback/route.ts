@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { auth } from '@/lib/auth-config';
 
 interface SessionUser {
@@ -44,10 +45,12 @@ export async function POST(
         id: true,
         category: true,
         subcategory: true,
+        status: true,
+        isPublic: true,
       },
     });
 
-    if (!skill) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'Skill not found' },
         { status: 404 }

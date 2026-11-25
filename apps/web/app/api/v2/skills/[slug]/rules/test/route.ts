@@ -4,6 +4,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { ruleEngine } from '@/lib/services/RuleEngine';
 import { ruleExecutionService } from '@/lib/services/RuleExecutionService';
 import { v2SuccessResponse, v2ErrorResponse } from '@/lib/services/V2ApiAuth';
@@ -24,10 +25,10 @@ export async function POST(
     // 获取技能及其知识片段
     const skill = await prisma.skill.findUnique({
       where: { id: slug },
-      select: { id: true, name: true, type: true },
+      select: { id: true, name: true, type: true, status: true, isPublic: true },
     });
 
-    if (!skill) {
+    if (!isPubliclyVisible(skill)) {
       return v2ErrorResponse('技能不存在', 404);
     }
 

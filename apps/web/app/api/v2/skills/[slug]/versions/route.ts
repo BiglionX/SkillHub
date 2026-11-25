@@ -3,6 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { v2SuccessResponse, v2ErrorResponse } from '@/lib/services/V2ApiAuth';
 
 export async function GET(
@@ -16,9 +17,12 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
-    // 检查技能是否存在
-    const skill = await prisma.skill.findUnique({ where: { id: slug }, select: { id: true } });
-    if (!skill) {
+    // 检查技能是否存在且公开可见
+    const skill = await prisma.skill.findUnique({
+      where: { id: slug },
+      select: { id: true, status: true, isPublic: true },
+    });
+    if (!isPubliclyVisible(skill)) {
       return v2ErrorResponse('技能不存在', 404);
     }
 

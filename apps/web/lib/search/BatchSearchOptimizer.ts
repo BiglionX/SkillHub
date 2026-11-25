@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_SQL, PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import type { Skill } from '@prisma/client';
 
 // 定义搜索结果的类型（包含相似度分数）
@@ -86,11 +87,11 @@ export class BatchSearchOptimizer {
     } = options;
 
     try {
-      // 构建WHERE条件
-      const whereConditions: string[] = ['status = $1', '"embeddingVector" IS NOT NULL'];
+      // 构建WHERE条件（统一公开可见性约束，不含占位符，参数索引从 1 开始）
+      const whereConditions: string[] = [PUBLIC_SKILL_SQL, '"embeddingVector" IS NOT NULL'];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const params: any[] = ['APPROVED'];
-      let paramIndex = 2;
+      const params: any[] = [];
+      let paramIndex = 1;
 
       if (category) {
         whereConditions.push(`category = $${paramIndex}`);
@@ -171,7 +172,7 @@ export class BatchSearchOptimizer {
     // 构建查询条件
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
-      status: 'APPROVED',
+      ...PUBLIC_SKILL_WHERE,
       // 优先使用 embeddingVector，如果为空则使用 embedding
       OR: [
         { embeddingVector: { not: { equals: [] } } },
@@ -311,24 +312,24 @@ export class BatchSearchOptimizer {
     topCategories: Array<{ category: string; count: number }>;
   }> {
     const totalSkills = await prisma.skill.count({
-      where: { status: 'APPROVED' },
+      where: { ...PUBLIC_SKILL_WHERE },
     });
 
     const skillsWithEmbeddings = await prisma.skill.count({
       where: {
-        status: 'APPROVED',
+        ...PUBLIC_SKILL_WHERE,
         // TODO: 添加 embeddingVector 过滤条件
       },
     });
 
     const avgQuality = await prisma.skill.aggregate({
-      where: { status: 'APPROVED' },
+      where: { ...PUBLIC_SKILL_WHERE },
       _avg: { qualityScore: true },
     });
 
     const categoryStats = await prisma.skill.groupBy({
       by: ['category'],
-      where: { status: 'APPROVED' },
+      where: { ...PUBLIC_SKILL_WHERE },
       _count: true,
       orderBy: {
         _count: { category: 'desc' },

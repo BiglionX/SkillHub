@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { z } from 'zod';
 
 // 验证评论数据的 Schema
@@ -22,10 +23,10 @@ export async function GET(
     // 通过 slug 查找技能
     const skill = await prisma.skill.findUnique({
       where: { slug: (await params).slug },
-      select: { id: true },
+      select: { id: true, status: true, isPublic: true },
     });
 
-    if (!skill) {
+    if (!isPubliclyVisible(skill)) {
       return NextResponse.json(
         { error: 'Skill not found' },
         { status: 404 }

@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma';
 import { Prisma } from '@prisma/client';
+import { inspectQualitySignals, collectInspectableText } from '../governance/quality-signals';
 import { SkillSeekersAdapter, CrawledSkill } from '../crawlers/SkillSeekersAdapter';
 import { SkillsMPTransformer } from '../transformers/SkillsMPTransformer';
 import { SmartClassifier } from '../utils/SmartClassifier';
@@ -80,12 +81,27 @@ export class CrawlerService {
           throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
         }
 
+        // 质量/安全门禁：
+        // - 新技能命中高危信号 → 不自动公开，转人工审核
+        // - 既有技能同步出高危内容 → 强制下架（REJECTED + 私有）
+        // - 安全内容不写 status/isPublic，避免覆盖人工审核决定
+        const qualityReport = inspectQualitySignals(
+          collectInspectableText({
+            name: skillData.name,
+            description: skillData.description,
+            tags: skillData.tags,
+          }),
+        );
+
         // 保存到数据库
         await prisma.skill.upsert({
           where: {
             slug: skillData.slug,
           },
           update: {
+            // 已公开技能同步出高危内容时自动下架；安全内容不触碰人工审核状态
+            status: qualityReport.safe ? undefined : 'REJECTED',
+            isPublic: qualityReport.safe ? undefined : false,
             name: skillData.name,
             description: skillData.description,
             version: skillData.version,
@@ -135,8 +151,8 @@ export class CrawlerService {
             permissions: skillData.permissions as Prisma.InputJsonValue,
             dependencies: skillData.dependencies as Prisma.InputJsonValue,
             authorId: await this.getOrCreateSystemUser(),
-            status: 'APPROVED',
-            isPublic: true,
+            status: qualityReport.safe ? 'APPROVED' : 'PENDING_REVIEW',
+            isPublic: qualityReport.safe,
             lastSyncedAt: new Date(),
             syncStatus: 'synced',
             updatedAt: skillData.updatedAt,

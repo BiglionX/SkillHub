@@ -59,6 +59,12 @@ docs/          开发计划 / 架构 / 集成指南
 - 新包必须同时出现在 `pnpm-workspace.yaml` 覆盖的目录下并补 `package.json`
 - 代码风格：TypeScript strict；`@/` 路径别名指向 `apps/web` 根；组件用 shadcn 风格（`components/ui/*` + `cn()`）
 - 提交信息建议遵循 Conventional Commits（仓库已配置 changesets）
+- **内容治理约定**：`apps/web/lib/governance/` 是内容治理的单一事实来源
+  - `visibility.ts` 定义公开可见性约束（`status: 'APPROVED' && isPublic: true`）。新增任何面向公众的技能查询/详情入口，**必须**复用 `PUBLIC_SKILL_WHERE`（Prisma）、`PUBLIC_SKILL_SQL`（原生 SQL）或 `isPubliclyVisible()`（findUnique 后兜底），禁止手写状态条件——历史上多个入口因各自为政泄漏过未审核内容。
+  - `quality-signals.ts` 只检测客观危险模式（危险 shell、凭据诱导外链、关键词堆砌），不做主题/立场判断。入库门禁（import / 爬虫 / SkillsMP 同步）：新技能命中 high 级信号时不得自动 `APPROVED + isPublic`，应转 `PENDING_REVIEW` / `DRAFT`；既有技能同步出高危内容时强制下架（`REJECTED + isPublic:false`）；安全内容不写 status/isPublic，避免覆盖人工审核决定。
+  - 可见性收口覆盖：全部列表/搜索 API（含 `advancedSearch`、语义/向量搜索）、详情页与 v2 子资源（skill.md / i18n / files / knowledge / vector_search / rules/test / generate / versions / trust-score）、MCP tools（含 `install_skill`）、A2A tasks、插件技能列表、Skill Pack 子技能、相关推荐/版本/评论端点、Sitemap。新增端点时对照此清单。
+  - `/api/skills` GET 的权限模型：管理员可查任意状态；普通用户仅可放宽到自己的技能（`authorId == 自己` 或草稿箱）；其余一律强制 `PUBLIC_SKILL_WHERE`。禁止仅凭"带了任意 authorId/status 参数"就放宽约束。
+  - **写操作隔离**：`/api/search/global` 是公开 GET，**只读**——本地搜索 + 已入库的 GitHub 技能查询，绝不触发爬虫写库。实时爬取/入库只能走 `POST /api/cron/crawler`（`CRON_SECRET`）或 `POST /api/admin/crawler/start`（管理员会话），避免匿名请求绕过入库质量门禁。
 
 ## 5. 环境变量
 

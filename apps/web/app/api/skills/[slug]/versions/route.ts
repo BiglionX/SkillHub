@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isPubliclyVisible } from '@/lib/governance/visibility';
 import { auth } from '@/lib/auth-config';
 import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from '@/lib/api-response';
 
@@ -17,10 +18,10 @@ export async function GET(
     // 查找Skill
     const skill = await prisma.skill.findUnique({
       where: { slug },
-      select: { id: true, authorId: true },
+      select: { id: true, authorId: true, status: true, isPublic: true },
     });
 
-    if (!skill) {
+    if (!isPubliclyVisible(skill)) {
       return notFoundResponse('Skill不存在');
     }
 

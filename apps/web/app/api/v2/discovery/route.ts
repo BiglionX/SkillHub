@@ -20,6 +20,7 @@
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 
 export const dynamic = 'force-dynamic';
 // 5 分钟缓存（CDN/Edge 友好）
@@ -37,9 +38,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const locale = searchParams.get('locale');
 
-    // 查询：仅包含兼容 Agent Skills 标准的 Skill
+    // 查询：仅包含兼容 Agent Skills 标准、且已审核公开的 Skill
     const where: Record<string, unknown> = {
-      isPublic: true,
+      ...PUBLIC_SKILL_WHERE,
       standardName: { not: null },
     };
 
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
     const skills = await prisma.skill.findMany({
       where,
       select: {
+        id: true,
         slug: true,
         standardName: true,
         standardDescription: true,
@@ -80,7 +82,8 @@ export async function GET(request: NextRequest) {
         generatedAt: new Date().toISOString(),
         total: items.length,
         hasMore,
-        nextCursor: hasMore ? items[items.length - 1]?.slug : null,
+        // cursor 查询用的是 id（见上方 where cursor: { id }），必须返回 id 而非 slug
+        nextCursor: hasMore ? items[items.length - 1]?.id : null,
         skills: items.map((s) => ({
           slug: s.slug,
           name: s.standardName,

@@ -4,6 +4,7 @@
  */
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { PUBLIC_SKILL_WHERE } from '@/lib/governance/visibility';
 import { v2SuccessResponse, v2ErrorResponse } from '@/lib/services/V2ApiAuth';
 
 export async function GET(
@@ -22,7 +23,7 @@ export async function GET(
     const where = {
       pluginCompatible: true,
       pluginIds: { has: pluginId },
-      status: 'APPROVED' as const,
+      ...PUBLIC_SKILL_WHERE,
     };
 
     const [skills, total] = await Promise.all([

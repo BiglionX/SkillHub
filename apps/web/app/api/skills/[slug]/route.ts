@@ -55,6 +55,16 @@ export async function GET(request: NextRequest, { params }: Props) {
       return notFoundResponse('技能不存在');
     }
 
+    // 公开详情只允许访问已审核公开的技能；作者本人可访问自己的未公开技能。
+    // 用显式布尔判断而非类型守卫，避免在此分支中把 skill 收窄为 never。
+    const publiclyVisible = skill.status === 'APPROVED' && skill.isPublic === true;
+    if (!publiclyVisible) {
+      const session = await auth();
+      if (!session?.user?.id || skill.authorId !== session.user.id) {
+        return notFoundResponse('技能不存在');
+      }
+    }
+
     return successResponse(skill);
   } catch (error) {
     console.error('获取技能详情失败:', error);
