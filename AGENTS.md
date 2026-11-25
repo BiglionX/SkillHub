@@ -47,7 +47,7 @@ docs/          开发计划 / 架构 / 集成指南
 | `pnpm test` | turbo 跑单元测试 |
 | `pnpm test:e2e` | Playwright E2E（apps/web/tests） |
 | `pnpm test:cypress` | Cypress E2E（apps/web/cypress） |
-| `pnpm db:generate` / `db:push` / `db:migrate` | Prisma（schema 在 `apps/web/prisma/schema.prisma`） |
+| `pnpm db:generate` / `db:push` / `db:migrate` / `db:deploy` | Prisma（schema 在 `apps/web/prisma/schema.prisma`；`db:deploy` 为生产环境 `prisma migrate deploy`） |
 | `pnpm ci` | 完整质量门禁：lint → typecheck → test → build |
 
 单包命令用 `pnpm --filter <包名> <script>`，例如 `pnpm --filter @skillhub/web run test`。
@@ -110,6 +110,7 @@ my-skill/
 6. **根 workspace lockfile 已重建（2026-04，306KB 含全部 importers）**：本地 `pnpm install` 已生成并生效。建议顺手删除过期的嵌套 lockfile `apps/web/pnpm-lock.yaml`、`apps/cli/pnpm-lock.yaml`（根 lockfile 已覆盖，留着会被 Next/工具链误判）。
 7. **部署配置已补齐（2026-04）**：`apps/web/next.config.js`（含 transpilePackages、standalone、outputFileTracingRoot、webpack node-builtin externals——instrumentation 编译必需）、`apps/web/vercel.json`（已改为 pnpm workspace 命令）、`Dockerfile.web` + `.dockerignore`（新建，Docker 部署用）、`.env.production.example`（补齐 OIDC/DIRECT_URL/SkillsMP/Upstash 等变量）。**已在本地跑通 `next build`（含 standalone 产物）**，但 Vercel/Docker 部署仍未实跑。
    - **Vercel 已实跑（2026-08）并修复三处**：① `apps/web/vercel.json` 的 `buildCommand` 需先构建 workspace 依赖再构建 web（`pnpm --filter @skillhub/search-sdk build && pnpm --filter @skillhub/widget build && pnpm --filter @skillhub/skill-validator build && pnpm --filter @skillhub/web run build`），否则全新 checkout 缺 `dist/` 报 `Can't resolve '@skillhub/widget'/'@skillhub/search-sdk'`；② `packages/widget` devDeps 的 `@types/react` 从 ^18 对齐到 ^19（+`@types/react-dom`），否则 tsup `--dts` 因 @types/react 18/19 双版本冲突报 TS2786；③ **Edge Function 修复**：`next.config.js` 的 node 内建模块 externals 必须限定 `nextRuntime === 'nodejs'`（否则 middleware Edge bundle 引用 `path/fs/crypto/os` 等被 Vercel 拒绝），且 `instrumentation.ts` 必须 Edge 安全——Next 15 会把它同时编译进 Edge 运行时，任何静态引入的 Node 内建模块（path/dotenv/调度器等）都要移入 `NEXT_RUNTIME === 'nodejs'` 守卫 + 动态导入。
+   - **生产迁移已接入部署（2026-11）**：`apps/web/vercel.json` 的 `buildCommand` 在 web 构建后追加 `if [ "$VERCEL_ENV" = "production" ]; then pnpm db:deploy; fi`（脚本定义在根 `package.json` / `apps/web/package.json`）。预览/开发环境不会执行迁移，避免 PR 预览误改生产库。**新增 Prisma migration 后无需手工连库**，但迁移失败会导致生产部署失败，需及时修复 SQL。Docker 部署尚未接入迁移，需另行处理。
 8. **仓库外的流浪 lockfile**：`D:\BigLionX\package-lock.json`（633KB，仓库上一级目录）会干扰 Next 根目录探测——已用 `outputFileTracingRoot` 屏蔽，建议手动删除该文件。
 9. **apps/helper 已接入 `tauri-plugin-opener`（2026-08）**：LLM Key 设置页的"获取 Key →"原是 `<a target="_blank">`，在 Tauri 2 WebView 里不会自动跳转默认浏览器。修复后走 `tauri-plugin-opener::openUrl()` 走系统 shell。**ACL 严格收紧**：`apps/helper/src-tauri/capabilities/default.json` 仅放行三个 Provider 文档域名（`platform.deepseek.com`、`platform.openai.com`、`open.bigmodel.cn`，glob `*`），非白名单 URL 在 Rust 层被拦截——前端被注入也只能量开白名单域名。新增 Provider 时务必同步更新该文件。
 10. **桌面端升级为「主客户端」并完成 M4 用量看板（2026-09，v2.0.5 已落地）**：v2.1 PRD ([docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md §5.3](docs/features/ONE_CLICK_INSTALL_DESKTOP_HELPER_PRD.md)) 正式把桌面端从「协议唤起器 + Key 保险箱 + 扫描仪」定位升级为「主客户端」，覆盖 A/B/C 三类全闭环。**Tab 体系从 2 Tab 升级为 5 Tab**（[App.tsx:15](apps/helper/src/App.tsx#L15)）：`home` / `explore` / `my` / `usage` / `settings`（详见 [§10](#10-对-ai-代理的工作指引)）。

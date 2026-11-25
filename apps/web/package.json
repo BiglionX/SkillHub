@@ -18,6 +18,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "seed:v3": "ts-node --transpile-only prisma/seed-v3-delivery.ts",
     "seed:m2": "ts-node --transpile-only prisma/seed-m2-playbooks.ts",

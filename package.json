@@ -23,6 +23,7 @@
     "db:generate": "pnpm --filter @skillhub/web run db:generate",
     "db:push": "pnpm --filter @skillhub/web run db:push",
     "db:migrate": "pnpm --filter @skillhub/web run db:migrate",
+    "db:deploy": "pnpm --filter @skillhub/web run db:deploy",
     "ci:version": "changeset version",
     "ci:publish": "changeset publish",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
